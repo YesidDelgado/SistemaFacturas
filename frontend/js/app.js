@@ -1,14 +1,15 @@
-
 "use strict";
 
 // Rutas de la API
 const API_FACTURAS = "/facturas";
 const API_USUARIOS = "/usuarios";
+const API_IA = "/ia";
 
 // Estado de la sesión actual
 let sesion = null;
 let facturasAdmin = [];
 let idEditando = null;
+let ultimaFacturaRegistrada = null;
 
 // Elementos auxiliares
 const $ = (id) => document.getElementById(id);
@@ -35,15 +36,23 @@ function mostrarMensaje(id, texto, tipo = "") {
     elemento.className = `mensaje ${tipo}`.trim();
 }
 
-// Petición común a la API
+// Petición común a la API.
+// IMPORTANTE: FormData no debe llevar Content-Type manual.
+// El navegador genera automáticamente el multipart/form-data.
 async function solicitar(url, opciones = {}) {
+    const esFormData = opciones.body instanceof FormData;
+
+    const headers = {
+        ...(opciones.body && !esFormData
+            ? { "Content-Type": "application/json" }
+            : {}),
+        ...(opciones.headers || {})
+    };
+
     const respuesta = await fetch(url, {
         credentials: "same-origin",
         ...opciones,
-        headers: {
-            ...(opciones.body ? { "Content-Type": "application/json" } : {}),
-            ...(opciones.headers || {})
-        }
+        headers
     });
 
     const texto = await respuesta.text();
@@ -58,9 +67,15 @@ async function solicitar(url, opciones = {}) {
     }
 
     if (!respuesta.ok) {
-        const detalle = datos.detail || datos.mensaje || "Ocurrió un error.";
+        const detalle =
+            datos.detail ||
+            datos.mensaje ||
+            "Ocurrió un error.";
+
         throw new Error(
-            typeof detalle === "string" ? detalle : JSON.stringify(detalle)
+            typeof detalle === "string"
+                ? detalle
+                : JSON.stringify(detalle)
         );
     }
 
@@ -72,15 +87,18 @@ function mensajeError(error) {
     if (error instanceof TypeError) {
         return "No se pudo conectar con el servidor. Comprueba que la API esté activa.";
     }
+
     return error.message || "Ocurrió un error inesperado.";
 }
 
 // Fecha local en formato YYYY-MM-DD
 function fechaHoy() {
     const fecha = new Date();
+
     const local = new Date(
         fecha.getTime() - fecha.getTimezoneOffset() * 60000
     );
+
     return local.toISOString().slice(0, 10);
 }
 
@@ -92,9 +110,6 @@ function formatoPesos(valor) {
         maximumFractionDigits: 2
     }).format(Number(valor) || 0);
 }
-
-
-let ultimaFacturaRegistrada = null;
 
 // Habilitar la impresión únicamente después de registrar una factura.
 function habilitarImpresionCliente(factura) {
@@ -111,7 +126,6 @@ function deshabilitarImpresionCliente() {
     $("acciones-factura-cliente").classList.add("oculta");
     $("btn-imprimir-cliente").disabled = true;
 }
-
 
 // Obtener el próximo consecutivo generado por el backend
 async function cargarProximoCodigo(idCampo) {
@@ -139,7 +153,171 @@ async function cargarProximoCodigo(idCampo) {
     }
 }
 
-// Limpiar los formularios de ingreso
+// ======================================================
+// ANÁLISIS DE FACTURAS MEDIANTE IA / OCR
+// ======================================================
+
+// Envía un PDF o imagen al backend para extraer los datos.
+// Esta función NO registra la factura.
+async function analizarFacturaOCR(
+    idArchivo,
+    idBoton,
+    idMensaje,
+    idCampoCliente,
+    idCampoFecha,
+    idCampoTotal
+) {
+    // Validar sesión y rol
+    if (
+        !sesion ||
+        !["cliente", "admin"].includes(sesion.rol)
+    ) {
+        mostrarVista("vista-ingreso");
+        return;
+    }
+
+    const campoArchivo = $(idArchivo);
+    const boton = $(idBoton);
+    const archivo = campoArchivo.files[0];
+
+    if (!archivo) {
+        mostrarMensaje(
+            idMensaje,
+            "Selecciona primero un archivo PDF o una imagen.",
+            "error"
+        );
+        return;
+    }
+
+    // Validar extensiones permitidas
+    const extensionesPermitidas = [
+        ".pdf",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp"
+    ];
+
+    const nombreArchivo = archivo.name.toLowerCase();
+
+    const extensionValida = extensionesPermitidas.some(
+        (extension) => nombreArchivo.endsWith(extension)
+    );
+
+    if (!extensionValida) {
+        mostrarMensaje(
+            idMensaje,
+            "Formato no permitido. Usa PDF, PNG, JPG, JPEG o WEBP.",
+            "error"
+        );
+        return;
+    }
+
+    // Límite de 10 MB
+    const limiteBytes = 10 * 1024 * 1024;
+
+    if (archivo.size > limiteBytes) {
+        mostrarMensaje(
+            idMensaje,
+            "El archivo supera el límite permitido de 10 MB.",
+            "error"
+        );
+        return;
+    }
+
+    // Preparar archivo para enviarlo al backend
+    const formulario = new FormData();
+
+    // El nombre "archivo" debe coincidir con el parámetro
+    // UploadFile declarado en backend/routers/ia.py.
+    formulario.append("archivo", archivo);
+
+    boton.disabled = true;
+    mostrarMensaje(
+        idMensaje,
+        "Analizando el documento. Esto puede tardar unos segundos..."
+    );
+
+    try {
+        const respuesta = await solicitar(
+            `${API_IA}/analizar-factura`,
+            {
+                method: "POST",
+                body: formulario
+            }
+        );
+
+        const datos = respuesta.datos || {};
+
+        // Solo completar los campos que el análisis haya reconocido.
+        // El código interno de factura nunca se modifica aquí.
+        if (
+            datos.cliente !== undefined &&
+            datos.cliente !== null
+        ) {
+            $(idCampoCliente).value = datos.cliente;
+        }
+
+        if (
+            datos.fecha !== undefined &&
+            datos.fecha !== null
+        ) {
+            $(idCampoFecha).value = datos.fecha;
+        }
+
+        if (
+            datos.total !== undefined &&
+            datos.total !== null
+        ) {
+            $(idCampoTotal).value = datos.total;
+        }
+
+        mostrarMensaje(
+            idMensaje,
+            respuesta.mensaje ||
+                "Análisis terminado. Revisa los datos antes de registrar la factura.",
+            "exito"
+        );
+    } catch (error) {
+        mostrarMensaje(
+            idMensaje,
+            `No fue posible analizar el documento: ${mensajeError(error)}`,
+            "error"
+        );
+    } finally {
+        boton.disabled = false;
+    }
+}
+
+// ======================================================
+// BOTONES DE ANÁLISIS OCR
+// ======================================================
+
+// OCR del cliente
+$("btn-ocr-cliente").addEventListener("click", () => {
+    analizarFacturaOCR(
+        "archivo-ocr-cliente",
+        "btn-ocr-cliente",
+        "mensaje-ocr-cliente",
+        "nombre-factura-cliente",
+        "fecha-cliente",
+        "valor-cliente"
+    );
+});
+
+// OCR del administrador
+$("btn-ocr-admin").addEventListener("click", () => {
+    analizarFacturaOCR(
+        "archivo-ocr-admin",
+        "btn-ocr-admin",
+        "mensaje-ocr-admin",
+        "nombre-factura-admin",
+        "fecha-admin",
+        "valor-admin"
+    );
+});
+
+// Limpiar mensajes de ingreso
 function limpiarMensajesIngreso() {
     mostrarMensaje("mensaje-ingreso", "");
     mostrarMensaje("mensaje-cliente", "");
@@ -160,14 +338,22 @@ $("btn-mostrar-admin").addEventListener("click", () => {
 });
 
 document.querySelectorAll("[data-volver]").forEach((boton) => {
-    boton.addEventListener("click", () => mostrarVista("vista-ingreso"));
+    boton.addEventListener("click", () => {
+        mostrarVista("vista-ingreso");
+    });
 });
 
-// Ingreso de cliente
+// ======================================================
+// INGRESO DE CLIENTE
+// ======================================================
+
 $("form-ingreso-cliente").addEventListener("submit", async (evento) => {
     evento.preventDefault();
 
-    const boton = evento.currentTarget.querySelector('button[type="submit"]');
+    const boton = evento.currentTarget.querySelector(
+        'button[type="submit"]'
+    );
+
     boton.disabled = true;
     mostrarMensaje("mensaje-cliente", "Validando datos...");
 
@@ -175,10 +361,16 @@ $("form-ingreso-cliente").addEventListener("submit", async (evento) => {
     const identificacion = $("identificacion-ingreso").value.trim();
 
     try {
-        const datos = await solicitar(`${API_USUARIOS}/ingresar-cliente`, {
-            method: "POST",
-            body: JSON.stringify({ nombre, identificacion })
-        });
+        const datos = await solicitar(
+            `${API_USUARIOS}/ingresar-cliente`,
+            {
+                method: "POST",
+                body: JSON.stringify({
+                    nombre,
+                    identificacion
+                })
+            }
+        );
 
         sesion = {
             autenticado: true,
@@ -191,7 +383,6 @@ $("form-ingreso-cliente").addEventListener("submit", async (evento) => {
             `¡Bienvenido, ${sesion.nombre}!`;
 
         deshabilitarImpresionCliente();
-
         mostrarVista("vista-cliente");
 
         mostrarMensaje(
@@ -201,23 +392,36 @@ $("form-ingreso-cliente").addEventListener("submit", async (evento) => {
             "exito"
         );
 
-        $("fecha-cliente").value = fechaHoy();
         $("form-factura-cliente").reset();
         $("fecha-cliente").value = fechaHoy();
 
+        // Limpiar el archivo y el mensaje del OCR
+        $("archivo-ocr-cliente").value = "";
+        mostrarMensaje("mensaje-ocr-cliente", "");
+
         await cargarProximoCodigo("codigo-cliente");
     } catch (error) {
-        mostrarMensaje("mensaje-cliente", mensajeError(error), "error");
+        mostrarMensaje(
+            "mensaje-cliente",
+            mensajeError(error),
+            "error"
+        );
     } finally {
         boton.disabled = false;
     }
 });
 
-// Ingreso de administrador
+// ======================================================
+// INGRESO DE ADMINISTRADOR
+// ======================================================
+
 $("form-ingreso-admin").addEventListener("submit", async (evento) => {
     evento.preventDefault();
 
-    const boton = evento.currentTarget.querySelector('button[type="submit"]');
+    const boton = evento.currentTarget.querySelector(
+        'button[type="submit"]'
+    );
+
     boton.disabled = true;
     mostrarMensaje("mensaje-admin", "Validando credenciales...");
 
@@ -225,10 +429,16 @@ $("form-ingreso-admin").addEventListener("submit", async (evento) => {
     const contrasena = $("contrasena-admin").value;
 
     try {
-        const datos = await solicitar(`${API_USUARIOS}/ingresar-admin`, {
-            method: "POST",
-            body: JSON.stringify({ user, contrasena })
-        });
+        const datos = await solicitar(
+            `${API_USUARIOS}/ingresar-admin`,
+            {
+                method: "POST",
+                body: JSON.stringify({
+                    user,
+                    contrasena
+                })
+            }
+        );
 
         sesion = {
             autenticado: true,
@@ -242,130 +452,159 @@ $("form-ingreso-admin").addEventListener("submit", async (evento) => {
         mostrarVista("vista-admin");
         await cargarPanelAdministrador();
     } catch (error) {
-        mostrarMensaje("mensaje-admin", mensajeError(error), "error");
-    } finally {
-        boton.disabled = false;
-    }
-});
-
-// Registrar una factura como cliente
-$("form-factura-cliente").addEventListener("submit", async (evento) => {
-    evento.preventDefault();
-
-    if (!sesion || sesion.rol !== "cliente") {
-        mostrarVista("vista-ingreso");
-        return;
-    }
-
-    const boton = $("btn-registrar-cliente");
-    boton.disabled = true;
-
-    const datosFactura = {
-        cliente: $("nombre-factura-cliente").value.trim(),
-        fecha: $("fecha-cliente").value,
-        total: Number($("valor-cliente").value)
-    };
-
-    
-    try {
-        const respuesta = await solicitar(API_FACTURAS, {
-            method: "POST",
-            body: JSON.stringify(datosFactura)
-        });
-
-        // Conservar los datos devueltos por el backend para imprimir.
-        ultimaFacturaRegistrada = respuesta;
-
-        habilitarImpresionCliente(respuesta);
-
         mostrarMensaje(
-            "mensaje-factura-cliente",
-            `Factura ${respuesta.factura || ""} registrada correctamente. Ya puedes imprimirla.`,
-            "exito"
-        );
-
-        $("form-factura-cliente").reset();
-        $("fecha-cliente").value = fechaHoy();
-
-        await cargarProximoCodigo("codigo-cliente");
-    } catch (error) {
-        mostrarMensaje(
-            "mensaje-factura-cliente",
+            "mensaje-admin",
             mensajeError(error),
             "error"
         );
     } finally {
         boton.disabled = false;
     }
-
 });
 
-// Registrar o actualizar una factura desde administración
-$("form-factura-admin").addEventListener("submit", async (evento) => {
-    evento.preventDefault();
+// ======================================================
+// REGISTRAR FACTURA COMO CLIENTE
+// ======================================================
 
-    if (!sesion || sesion.rol !== "admin") {
-        mostrarVista("vista-ingreso");
-        return;
-    }
+$("form-factura-cliente").addEventListener(
+    "submit",
+    async (evento) => {
+        evento.preventDefault();
 
-    const boton = $("btn-guardar-admin");
-    boton.disabled = true;
+        if (!sesion || sesion.rol !== "cliente") {
+            mostrarVista("vista-ingreso");
+            return;
+        }
 
-    const datosFactura = {
-        cliente: $("nombre-factura-admin").value.trim(),
-        fecha: $("fecha-admin").value,
-        total: Number($("valor-admin").value)
-    };
+        const boton = $("btn-registrar-cliente");
+        boton.disabled = true;
 
-    try {
-        if (idEditando !== null) {
-            await solicitar(`${API_FACTURAS}/${idEditando}`, {
-                method: "PUT",
-                body: JSON.stringify(datosFactura)
-            });
+        const datosFactura = {
+            cliente: $("nombre-factura-cliente").value.trim(),
+            fecha: $("fecha-cliente").value,
+            total: Number($("valor-cliente").value)
+        };
 
-            mostrarMensaje(
-                "mensaje-factura-admin",
-                "Factura modificada correctamente.",
-                "exito"
-            );
-        } else {
-            await solicitar(API_FACTURAS, {
+        try {
+            const respuesta = await solicitar(API_FACTURAS, {
                 method: "POST",
                 body: JSON.stringify(datosFactura)
             });
 
+            // Conservar los datos devueltos por el backend para imprimir.
+            ultimaFacturaRegistrada = respuesta;
+            habilitarImpresionCliente(respuesta);
+
             mostrarMensaje(
-                "mensaje-factura-admin",
-                "Factura registrada correctamente.",
+                "mensaje-factura-cliente",
+                `Factura ${respuesta.factura || ""} registrada correctamente. Ya puedes imprimirla.`,
                 "exito"
             );
+
+            $("form-factura-cliente").reset();
+            $("fecha-cliente").value = fechaHoy();
+
+            $("archivo-ocr-cliente").value = "";
+            mostrarMensaje("mensaje-ocr-cliente", "");
+
+            await cargarProximoCodigo("codigo-cliente");
+        } catch (error) {
+            mostrarMensaje(
+                "mensaje-factura-cliente",
+                mensajeError(error),
+                "error"
+            );
+        } finally {
+            boton.disabled = false;
+        }
+    }
+);
+
+// ======================================================
+// REGISTRAR O ACTUALIZAR FACTURA COMO ADMINISTRADOR
+// ======================================================
+
+$("form-factura-admin").addEventListener(
+    "submit",
+    async (evento) => {
+        evento.preventDefault();
+
+        if (!sesion || sesion.rol !== "admin") {
+            mostrarVista("vista-ingreso");
+            return;
         }
 
-        cancelarEdicion();
-        await cargarPanelAdministrador();
-    } catch (error) {
-        mostrarMensaje("mensaje-factura-admin", mensajeError(error), "error");
-    } finally {
-        boton.disabled = false;
+        const boton = $("btn-guardar-admin");
+        boton.disabled = true;
+
+        const datosFactura = {
+            cliente: $("nombre-factura-admin").value.trim(),
+            fecha: $("fecha-admin").value,
+            total: Number($("valor-admin").value)
+        };
+
+        try {
+            if (idEditando !== null) {
+                await solicitar(`${API_FACTURAS}/${idEditando}`, {
+                    method: "PUT",
+                    body: JSON.stringify(datosFactura)
+                });
+
+                mostrarMensaje(
+                    "mensaje-factura-admin",
+                    "Factura modificada correctamente.",
+                    "exito"
+                );
+            } else {
+                await solicitar(API_FACTURAS, {
+                    method: "POST",
+                    body: JSON.stringify(datosFactura)
+                });
+
+                mostrarMensaje(
+                    "mensaje-factura-admin",
+                    "Factura registrada correctamente.",
+                    "exito"
+                );
+            }
+
+            cancelarEdicion();
+            await cargarPanelAdministrador();
+        } catch (error) {
+            mostrarMensaje(
+                "mensaje-factura-admin",
+                mensajeError(error),
+                "error"
+            );
+        } finally {
+            boton.disabled = false;
+        }
     }
-});
+);
+
+// ======================================================
+// PANEL DE ADMINISTRACIÓN
+// ======================================================
 
 // Cargar estadísticas y facturas del administrador
 async function cargarPanelAdministrador() {
     try {
         const datos = await solicitar(API_FACTURAS);
-        facturasAdmin = Array.isArray(datos) ? datos : (datos.facturas || []);
+
+        facturasAdmin = Array.isArray(datos)
+            ? datos
+            : (datos.facturas || []);
 
         $("total-facturas").textContent = facturasAdmin.length;
 
         const acumulado = facturasAdmin.reduce(
-            (suma, factura) => suma + (Number(factura.total) || 0),
+            (suma, factura) =>
+                suma + (Number(factura.total) || 0),
             0
         );
 
         $("valor-total").textContent = formatoPesos(acumulado);
+
         dibujarTablaFacturas();
         await cargarProximoCodigo("codigo-admin");
     } catch (error) {
@@ -396,7 +635,9 @@ function dibujarTablaFacturas() {
             factura.factura,
             factura.cliente,
             factura.fecha
-        ].some((valor) => String(valor ?? "").toLowerCase().includes(filtro));
+        ].some((valor) =>
+            String(valor ?? "").toLowerCase().includes(filtro)
+        );
     });
 
     const tabla = $("tabla-facturas-admin");
@@ -429,85 +670,131 @@ function dibujarTablaFacturas() {
 $("buscar-admin").addEventListener("input", dibujarTablaFacturas);
 
 // Acciones de la tabla
-$("tabla-facturas-admin").addEventListener("click", async (evento) => {
-    const boton = evento.target.closest("button[data-accion]");
-    if (!boton) return;
+$("tabla-facturas-admin").addEventListener(
+    "click",
+    async (evento) => {
+        const boton = evento.target.closest("button[data-accion]");
 
-    if (!sesion || sesion.rol !== "admin") {
-        mostrarVista("vista-ingreso");
-        return;
-    }
+        if (!boton) return;
 
-    const id = Number(boton.dataset.id);
-    const accion = boton.dataset.accion;
-    const factura = facturasAdmin.find((item) => Number(item.id) === id);
+        if (!sesion || sesion.rol !== "admin") {
+            mostrarVista("vista-ingreso");
+            return;
+        }
 
-    if (!factura) return;
+        const id = Number(boton.dataset.id);
+        const accion = boton.dataset.accion;
 
-    if (accion === "pdf") {
-        window.open(`${API_FACTURAS}/${id}/pdf`, "_blank", "noopener");
-        return;
-    }
-
-    if (accion === "editar") {
-        idEditando = id;
-        $("codigo-admin").value = factura.factura || "";
-        $("nombre-factura-admin").value = factura.cliente || "";
-        $("fecha-admin").value = factura.fecha || "";
-        $("valor-admin").value = factura.total ?? "";
-        $("titulo-formulario-admin").textContent = "Modificar factura";
-        $("btn-guardar-admin").textContent = "Guardar cambios";
-        $("btn-cancelar-edicion").classList.remove("oculta");
-        mostrarMensaje("mensaje-factura-admin", "");
-        $("form-factura-admin").scrollIntoView({ behavior: "smooth" });
-        return;
-    }
-
-    if (accion === "eliminar") {
-        const confirmar = window.confirm(
-            `¿Seguro que deseas eliminar la factura ${factura.factura}?`
+        const factura = facturasAdmin.find(
+            (item) => Number(item.id) === id
         );
 
-        if (!confirmar) return;
+        if (!factura) return;
 
-        try {
-            await solicitar(`${API_FACTURAS}/${id}`, {
-                method: "DELETE"
+        if (accion === "pdf") {
+            window.open(
+                `${API_FACTURAS}/${id}/pdf`,
+                "_blank",
+                "noopener"
+            );
+            return;
+        }
+
+        if (accion === "editar") {
+            idEditando = id;
+
+            $("codigo-admin").value = factura.factura || "";
+            $("nombre-factura-admin").value = factura.cliente || "";
+            $("fecha-admin").value = factura.fecha || "";
+            $("valor-admin").value = factura.total ?? "";
+
+            $("titulo-formulario-admin").textContent =
+                "Modificar factura";
+
+            $("btn-guardar-admin").textContent = "Guardar cambios";
+
+            $("btn-cancelar-edicion").classList.remove("oculta");
+
+            mostrarMensaje("mensaje-factura-admin", "");
+
+            $("form-factura-admin").scrollIntoView({
+                behavior: "smooth"
             });
 
-            mostrarMensaje(
-                "mensaje-factura-admin",
-                "Factura eliminada correctamente.",
-                "exito"
+            return;
+        }
+
+        if (accion === "eliminar") {
+            const confirmar = window.confirm(
+                `¿Seguro que deseas eliminar la factura ${factura.factura}?`
             );
 
-            if (idEditando === id) cancelarEdicion();
-            await cargarPanelAdministrador();
-        } catch (error) {
-            mostrarMensaje("mensaje-factura-admin", mensajeError(error), "error");
+            if (!confirmar) return;
+
+            try {
+                await solicitar(`${API_FACTURAS}/${id}`, {
+                    method: "DELETE"
+                });
+
+                mostrarMensaje(
+                    "mensaje-factura-admin",
+                    "Factura eliminada correctamente.",
+                    "exito"
+                );
+
+                if (idEditando === id) {
+                    cancelarEdicion();
+                }
+
+                await cargarPanelAdministrador();
+            } catch (error) {
+                mostrarMensaje(
+                    "mensaje-factura-admin",
+                    mensajeError(error),
+                    "error"
+                );
+            }
         }
     }
-});
+);
 
 // Cancelar una modificación
 function cancelarEdicion() {
     idEditando = null;
+
     $("form-factura-admin").reset();
     $("fecha-admin").value = fechaHoy();
+
     $("titulo-formulario-admin").textContent = "Registrar factura";
     $("btn-guardar-admin").textContent = "Registrar factura";
+
     $("btn-cancelar-edicion").classList.add("oculta");
+
+    $("archivo-ocr-admin").value = "";
+    mostrarMensaje("mensaje-ocr-admin", "");
+
     cargarProximoCodigo("codigo-admin");
 }
 
-$("btn-cancelar-edicion").addEventListener("click", cancelarEdicion);
+$("btn-cancelar-edicion").addEventListener(
+    "click",
+    cancelarEdicion
+);
 
-// Cerrar sesión
+// ======================================================
+// CERRAR SESIÓN
+// ======================================================
+
 async function cerrarSesion() {
     try {
-        await solicitar(`${API_USUARIOS}/salir`, { method: "POST" });
+        await solicitar(`${API_USUARIOS}/salir`, {
+            method: "POST"
+        });
     } catch (error) {
-        console.error("No se pudo confirmar el cierre de sesión:", error);
+        console.error(
+            "No se pudo confirmar el cierre de sesión:",
+            error
+        );
     }
 
     sesion = null;
@@ -519,13 +806,23 @@ async function cerrarSesion() {
     $("form-factura-cliente").reset();
     $("form-factura-admin").reset();
 
+    $("archivo-ocr-cliente").value = "";
+    $("archivo-ocr-admin").value = "";
+
+    mostrarMensaje("mensaje-ocr-cliente", "");
+    mostrarMensaje("mensaje-ocr-admin", "");
+
+    deshabilitarImpresionCliente();
     mostrarVista("vista-ingreso");
 }
 
 $("btn-salir-cliente").addEventListener("click", cerrarSesion);
 $("btn-salir-admin").addEventListener("click", cerrarSesion);
 
-// Al abrir la página, recuperar la sesión del servidor si existe
+// ======================================================
+// RECUPERAR SESIÓN AL ABRIR LA PÁGINA
+// ======================================================
+
 async function iniciarAplicacion() {
     try {
         const datos = await solicitar(`${API_USUARIOS}/sesion`);
@@ -540,13 +837,16 @@ async function iniciarAplicacion() {
         if (sesion.rol === "admin") {
             $("saludo-admin").textContent =
                 `Bienvenido, ${sesion.nombre || "administrador"}`;
+
             mostrarVista("vista-admin");
             await cargarPanelAdministrador();
         } else if (sesion.rol === "cliente") {
             $("saludo-cliente").textContent =
                 `¡Bienvenido, ${sesion.nombre || "cliente"}!`;
+
             mostrarVista("vista-cliente");
             $("fecha-cliente").value = fechaHoy();
+
             await cargarProximoCodigo("codigo-cliente");
         } else {
             mostrarVista("vista-ingreso");
@@ -557,13 +857,12 @@ async function iniciarAplicacion() {
     }
 }
 
-
+// Imprimir la factura registrada por el cliente
 $("btn-imprimir-cliente").addEventListener("click", () => {
     if (!ultimaFacturaRegistrada || !ultimaFacturaRegistrada.id) {
         return;
     }
 
-    // Abrir el PDF generado por el backend para esta factura.
     window.open(
         `${API_FACTURAS}/${Number(ultimaFacturaRegistrada.id)}/pdf`,
         "_blank",
@@ -571,5 +870,5 @@ $("btn-imprimir-cliente").addEventListener("click", () => {
     );
 });
 
-
+// Iniciar la aplicación
 iniciarAplicacion();

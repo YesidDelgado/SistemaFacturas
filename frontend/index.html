@@ -1,16 +1,25 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta
+        name="description"
+        content="Sistema de facturación con registro, administración y análisis de documentos mediante inteligencia artificial."
+    >
+
     <title>Sistema de facturación</title>
+
     <link rel="stylesheet" href="/static/css/estilos.css">
 </head>
+
 <body>
     <main class="contenedor">
 
-        <!-- Pantalla inicial y menú de ingreso -->
+        <!-- ==================================================
+             PANTALLA INICIAL
+             ================================================== -->
         <section id="vista-ingreso" class="pantalla">
             <div class="marca">
                 <div class="logo">SF</div>
@@ -19,173 +28,401 @@
 
             <div class="bienvenida">
                 <span class="etiqueta">BIENVENIDO</span>
+
                 <h1>Bienvenido al sistema de facturación</h1>
-                <p>Selecciona el tipo de ingreso para continuar.</p>
+
+                <p>
+                    Administra tus facturas y utiliza herramientas
+                    inteligentes para facilitar el registro de información.
+                </p>
 
                 <div class="opciones-ingreso">
-                    <button type="button" id="btn-mostrar-cliente"
-                            class="opcion">
+                    <button
+                        type="button"
+                        id="btn-mostrar-cliente"
+                        class="opcion"
+                    >
                         <span class="icono">👤</span>
-                        <span>
+
+                        <span class="texto-opcion">
                             <strong>Ingresar cliente</strong>
                             <small>Registrar tus facturas</small>
                         </span>
+
                         <span class="flecha">›</span>
                     </button>
 
-                    <button type="button" id="btn-mostrar-admin"
-                            class="opcion">
+                    <button
+                        type="button"
+                        id="btn-mostrar-admin"
+                        class="opcion"
+                    >
                         <span class="icono">🛡️</span>
-                        <span>
+
+                        <span class="texto-opcion">
                             <strong>Ingresar administrador</strong>
                             <small>Administrar el sistema</small>
                         </span>
+
                         <span class="flecha">›</span>
                     </button>
                 </div>
 
-                <p id="mensaje-ingreso" class="mensaje" role="status"></p>
+                <p
+                    id="mensaje-ingreso"
+                    class="mensaje"
+                    role="status"
+                ></p>
             </div>
         </section>
 
-        <!-- Formulario de ingreso de cliente -->
-        <section id="vista-login-cliente" class="pantalla oculta">
+        <!-- ==================================================
+             INGRESO DE CLIENTE
+             ================================================== -->
+        <section
+            id="vista-login-cliente"
+            class="pantalla oculta"
+        >
             <div class="panel acceso">
-                <button type="button" class="volver" data-volver>
+                <button
+                    type="button"
+                    class="volver"
+                    data-volver
+                >
                     ← Volver
                 </button>
 
                 <span class="etiqueta">ACCESO DE CLIENTES</span>
+
                 <h1>Ingresar como cliente</h1>
-                <p>Escribe tu nombre y número de identificación.</p>
+
+                <p>
+                    Escribe tu nombre y número de identificación.
+                </p>
 
                 <form id="form-ingreso-cliente">
-                    <label for="nombre-ingreso">Nombre completo</label>
-                    <input id="nombre-ingreso" name="nombre"
-                           type="text" maxlength="120"
-                           placeholder="Ej. Pepito Pérez" required>
+                    <label for="nombre-ingreso">
+                        Nombre completo
+                    </label>
 
-                    <label for="identificacion-ingreso">Identificación</label>
-                    <input id="identificacion-ingreso" name="identificacion"
-                           type="text" maxlength="40"
-                           placeholder="Número de identificación" required>
+                    <input
+                        id="nombre-ingreso"
+                        name="nombre"
+                        type="text"
+                        maxlength="120"
+                        placeholder="Ej. Pepito Pérez"
+                        autocomplete="name"
+                        required
+                    >
 
-                    <button type="submit" class="principal ancho">
+                    <label for="identificacion-ingreso">
+                        Identificación
+                    </label>
+
+                    <input
+                        id="identificacion-ingreso"
+                        name="identificacion"
+                        type="text"
+                        maxlength="40"
+                        placeholder="Número de identificación"
+                        required
+                    >
+
+                    <button
+                        type="submit"
+                        class="principal ancho"
+                    >
                         Ingresar
                     </button>
                 </form>
-                <p id="mensaje-cliente" class="mensaje" role="status"></p>
+
+                <p
+                    id="mensaje-cliente"
+                    class="mensaje"
+                    role="status"
+                ></p>
             </div>
         </section>
 
-        <!-- Formulario de ingreso de administrador -->
-        <section id="vista-login-admin" class="pantalla oculta">
+        <!-- ==================================================
+             INGRESO DE ADMINISTRADOR
+             ================================================== -->
+        <section
+            id="vista-login-admin"
+            class="pantalla oculta"
+        >
             <div class="panel acceso">
-                <button type="button" class="volver" data-volver>
+                <button
+                    type="button"
+                    class="volver"
+                    data-volver
+                >
                     ← Volver
                 </button>
 
                 <span class="etiqueta">ACCESO RESTRINGIDO</span>
+
                 <h1>Ingresar como administrador</h1>
-                <p>Introduce tus credenciales de administración.</p>
+
+                <p>
+                    Introduce tus credenciales de administración.
+                </p>
 
                 <form id="form-ingreso-admin">
-                    <label for="usuario-admin">Usuario</label>
-                    <input id="usuario-admin" name="user"
-                           type="text" autocomplete="username"
-                           required>
+                    <label for="usuario-admin">
+                        Usuario
+                    </label>
 
-                    <label for="contrasena-admin">Contraseña</label>
-                    <input id="contrasena-admin" name="contrasena"
-                           type="password" autocomplete="current-password"
-                           required>
+                    <input
+                        id="usuario-admin"
+                        name="user"
+                        type="text"
+                        autocomplete="username"
+                        required
+                    >
 
-                    <button type="submit" class="principal ancho">
+                    <label for="contrasena-admin">
+                        Contraseña
+                    </label>
+
+                    <input
+                        id="contrasena-admin"
+                        name="contrasena"
+                        type="password"
+                        autocomplete="current-password"
+                        required
+                    >
+
+                    <button
+                        type="submit"
+                        class="principal ancho"
+                    >
                         Ingresar al panel
                     </button>
                 </form>
-                <p id="mensaje-admin" class="mensaje" role="status"></p>
+
+                <p
+                    id="mensaje-admin"
+                    class="mensaje"
+                    role="status"
+                ></p>
             </div>
         </section>
 
-        <!-- Vista del cliente: solo registrar facturas -->
+        <!-- ==================================================
+             VISTA DEL CLIENTE
+             ================================================== -->
         <section id="vista-cliente" class="oculta">
+
             <header class="barra-superior">
                 <div class="marca">
                     <div class="logo">SF</div>
                     <span>Sistema de facturación</span>
                 </div>
-                <button type="button" class="secundario" id="btn-salir-cliente">
+
+                <button
+                    type="button"
+                    class="secundario"
+                    id="btn-salir-cliente"
+                >
                     Cerrar sesión
                 </button>
             </header>
 
             <div class="saludo">
                 <span class="etiqueta">PORTAL DEL CLIENTE</span>
+
                 <h1 id="saludo-cliente">Bienvenido</h1>
-                <p>Registra tus facturas completando los siguientes datos.</p>
+
+                <p>
+                    Registra tus facturas y revisa la información
+                    antes de guardarla.
+                </p>
             </div>
 
-            <section class="panel">
-                <h2>Registrar factura</h2>
+            <!-- PANEL OCR DEL CLIENTE -->
+            <section class="panel panel-ocr">
+                <div class="encabezado-ocr">
+                    <div class="icono-ocr">✦</div>
 
-                <form id="form-factura-cliente" class="formulario">
+                    <div>
+                        <span class="etiqueta">
+                            INTELIGENCIA ARTIFICIAL
+                        </span>
+
+                        <h2>Analizar factura con IA</h2>
+
+                        <p>
+                            Selecciona un documento para intentar extraer
+                            automáticamente el cliente, la fecha y el total.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="campo-archivo">
+                    <label for="archivo-ocr-cliente">
+                        Seleccionar factura
+                    </label>
+
+                    <input
+                        type="file"
+                        id="archivo-ocr-cliente"
+                        accept=".pdf,.png,.jpg,.jpeg,.webp"
+                    >
+
+                    <small>
+                        Formatos permitidos: PDF, PNG, JPG, JPEG y WEBP.
+                        Tamaño máximo: 10 MB.
+                    </small>
+                </div>
+
+                <button
+                    type="button"
+                    id="btn-ocr-cliente"
+                    class="boton-ocr"
+                >
+                    ✦ Analizar documento
+                </button>
+
+                <p
+                    id="mensaje-ocr-cliente"
+                    class="mensaje"
+                    role="status"
+                    aria-live="polite"
+                ></p>
+
+                <p class="ayuda-ocr">
+                    Revisa la información extraída. El análisis no registra
+                    la factura ni modifica el consecutivo automáticamente.
+                </p>
+            </section>
+
+            <!-- FORMULARIO ORIGINAL DE FACTURA DEL CLIENTE -->
+            <section class="panel">
+                <div class="encabezado-panel">
+                    <div>
+                        <span class="etiqueta">REGISTRO</span>
+                        <h2>Registrar factura</h2>
+                    </div>
+                </div>
+
+                <form
+                    id="form-factura-cliente"
+                    class="formulario"
+                >
                     <div class="campo">
-                        <label for="codigo-cliente">Número de factura</label>
-                        <input id="codigo-cliente" type="text"
-                               placeholder="Generando..." readonly>
-                        <small>Este número se asigna automáticamente.</small>
+                        <label for="codigo-cliente">
+                            Número de factura
+                        </label>
+
+                        <input
+                            id="codigo-cliente"
+                            type="text"
+                            placeholder="Generando..."
+                            readonly
+                        >
+
+                        <small>
+                            Este número se asigna automáticamente.
+                        </small>
                     </div>
 
                     <div class="campo">
                         <label for="nombre-factura-cliente">
                             Nombre que aparece en la factura
                         </label>
-                        <input id="nombre-factura-cliente" name="cliente"
-                               type="text" maxlength="150"
-                               placeholder="Nombre completo" required>
+
+                        <input
+                            id="nombre-factura-cliente"
+                            name="cliente"
+                            type="text"
+                            maxlength="150"
+                            placeholder="Nombre completo"
+                            required
+                        >
                     </div>
 
                     <div class="campo">
-                        <label for="fecha-cliente">Fecha</label>
-                        <input id="fecha-cliente" name="fecha"
-                               type="date" required>
+                        <label for="fecha-cliente">
+                            Fecha
+                        </label>
+
+                        <input
+                            id="fecha-cliente"
+                            name="fecha"
+                            type="date"
+                            required
+                        >
                     </div>
 
                     <div class="campo">
-                        <label for="valor-cliente">Valor</label>
-                        <input id="valor-cliente" name="total"
-                               type="number" min="0.01" step="0.01"
-                               placeholder="0.00" required>
+                        <label for="valor-cliente">
+                            Valor
+                        </label>
+
+                        <input
+                            id="valor-cliente"
+                            name="total"
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            placeholder="0.00"
+                            required
+                        >
                     </div>
 
                     <div class="acciones">
-                        <button type="submit" class="principal" id="btn-registrar-cliente">
+                        <button
+                            type="submit"
+                            class="principal"
+                            id="btn-registrar-cliente"
+                        >
                             Registrar factura
                         </button>
                     </div>
-                </form>               
-                <p id="mensaje-factura-cliente" class="mensaje" role="status"></p>
+                </form>
 
-                <div id="acciones-factura-cliente" class="acciones oculta">
-                <button type="button" id="btn-imprimir-cliente" class="principal">
+                <p
+                    id="mensaje-factura-cliente"
+                    class="mensaje"
+                    role="status"
+                ></p>
+
+                <div
+                    id="acciones-factura-cliente"
+                    class="acciones oculta"
+                >
+                    <button
+                        type="button"
+                        id="btn-imprimir-cliente"
+                        class="principal"
+                        disabled
+                    >
                         Imprimir factura
-                </button>
+                    </button>
                 </div>
-
             </section>
         </section>
 
-        <!-- Vista del administrador: gestión completa -->
+        <!-- ==================================================
+             VISTA DEL ADMINISTRADOR
+             ================================================== -->
         <section id="vista-admin" class="oculta">
+
             <header class="barra-superior">
                 <div class="marca">
                     <div class="logo">SF</div>
                     <span>Sistema de facturación</span>
                 </div>
+
                 <div class="acciones-superiores">
                     <span class="rol-admin">Administrador</span>
-                    <button type="button" class="secundario" id="btn-salir-admin">
+
+                    <button
+                        type="button"
+                        class="secundario"
+                        id="btn-salir-admin"
+                    >
                         Cerrar sesión
                     </button>
                 </div>
@@ -193,75 +430,217 @@
 
             <div class="saludo">
                 <span class="etiqueta">PANEL DE ADMINISTRACIÓN</span>
-                <h1 id="saludo-admin">Bienvenido, administrador</h1>
-                <p>Consulta y administra las facturas registradas.</p>
+
+                <h1 id="saludo-admin">
+                    Bienvenido, administrador
+                </h1>
+
+                <p>
+                    Consulta y administra las facturas registradas.
+                </p>
             </div>
 
+            <!-- TARJETAS DE RESUMEN -->
             <div class="resumen">
-                <article class="tarjeta">
+                <article class="tarjeta tarjeta-azul">
+                    <div class="tarjeta-icono">▤</div>
+
                     <span>Total de facturas</span>
+
                     <strong id="total-facturas">0</strong>
+
+                    <small>Facturas registradas</small>
                 </article>
+
                 <article class="tarjeta tarjeta-verde">
+                    <div class="tarjeta-icono">＄</div>
+
                     <span>Valor acumulado</span>
+
                     <strong id="valor-total">$0</strong>
+
+                    <small>Valor total registrado</small>
                 </article>
             </div>
 
-            <section class="panel">
-                <div class="encabezado-panel">
-                    <h2 id="titulo-formulario-admin">Registrar factura</h2>
-                    <span class="etiqueta">ADMINISTRACIÓN</span>
+            <!-- PANEL OCR DEL ADMINISTRADOR -->
+            <section class="panel panel-ocr">
+                <div class="encabezado-ocr">
+                    <div class="icono-ocr">✦</div>
+
+                    <div>
+                        <span class="etiqueta">
+                            INTELIGENCIA ARTIFICIAL
+                        </span>
+
+                        <h2>Analizar factura con IA</h2>
+
+                        <p>
+                            Extrae datos de una factura para facilitar
+                            el registro o la actualización de información.
+                        </p>
+                    </div>
                 </div>
 
-                <form id="form-factura-admin" class="formulario">
+                <div class="campo-archivo">
+                    <label for="archivo-ocr-admin">
+                        Seleccionar factura
+                    </label>
+
+                    <input
+                        type="file"
+                        id="archivo-ocr-admin"
+                        accept=".pdf,.png,.jpg,.jpeg,.webp"
+                    >
+
+                    <small>
+                        Formatos permitidos: PDF, PNG, JPG, JPEG y WEBP.
+                        Tamaño máximo: 10 MB.
+                    </small>
+                </div>
+
+                <button
+                    type="button"
+                    id="btn-ocr-admin"
+                    class="boton-ocr"
+                >
+                    ✦ Analizar documento
+                </button>
+
+                <p
+                    id="mensaje-ocr-admin"
+                    class="mensaje"
+                    role="status"
+                    aria-live="polite"
+                ></p>
+
+                <p class="ayuda-ocr">
+                    Verifica los campos extraídos antes de guardar.
+                    La IA no registra ni elimina facturas por sí sola.
+                </p>
+            </section>
+
+            <!-- FORMULARIO DE ADMINISTRACIÓN -->
+            <section class="panel">
+                <div class="encabezado-panel">
+                    <div>
+                        <span class="etiqueta">GESTIÓN</span>
+
+                        <h2 id="titulo-formulario-admin">
+                            Registrar factura
+                        </h2>
+                    </div>
+
+                    <span class="etiqueta etiqueta-admin">
+                        ADMINISTRACIÓN
+                    </span>
+                </div>
+
+                <form
+                    id="form-factura-admin"
+                    class="formulario"
+                >
                     <div class="campo">
-                        <label for="codigo-admin">Número de factura</label>
-                        <input id="codigo-admin" type="text" readonly
-                               placeholder="Generando...">
-                        <small>Asignado automáticamente al crear.</small>
+                        <label for="codigo-admin">
+                            Número de factura
+                        </label>
+
+                        <input
+                            id="codigo-admin"
+                            type="text"
+                            readonly
+                            placeholder="Generando..."
+                        >
+
+                        <small>
+                            Asignado automáticamente al crear.
+                        </small>
                     </div>
 
                     <div class="campo">
                         <label for="nombre-factura-admin">
                             Nombre que aparece en la factura
                         </label>
-                        <input id="nombre-factura-admin" name="cliente"
-                               type="text" maxlength="150" required>
+
+                        <input
+                            id="nombre-factura-admin"
+                            name="cliente"
+                            type="text"
+                            maxlength="150"
+                            placeholder="Nombre completo"
+                            required
+                        >
                     </div>
 
                     <div class="campo">
-                        <label for="fecha-admin">Fecha</label>
-                        <input id="fecha-admin" name="fecha"
-                               type="date" required>
+                        <label for="fecha-admin">
+                            Fecha
+                        </label>
+
+                        <input
+                            id="fecha-admin"
+                            name="fecha"
+                            type="date"
+                            required
+                        >
                     </div>
 
                     <div class="campo">
-                        <label for="valor-admin">Valor</label>
-                        <input id="valor-admin" name="total"
-                               type="number" min="0.01" step="0.01" required>
+                        <label for="valor-admin">
+                            Valor
+                        </label>
+
+                        <input
+                            id="valor-admin"
+                            name="total"
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            placeholder="0.00"
+                            required
+                        >
                     </div>
 
                     <div class="acciones">
-                        <button type="submit" class="principal" id="btn-guardar-admin">
+                        <button
+                            type="submit"
+                            class="principal"
+                            id="btn-guardar-admin"
+                        >
                             Registrar factura
                         </button>
-                        <button type="button" class="secundario oculta"
-                                id="btn-cancelar-edicion">
+
+                        <button
+                            type="button"
+                            class="secundario oculta"
+                            id="btn-cancelar-edicion"
+                        >
                             Cancelar edición
                         </button>
                     </div>
                 </form>
-                <p id="mensaje-factura-admin" class="mensaje"
-                   role="status"></p>
+
+                <p
+                    id="mensaje-factura-admin"
+                    class="mensaje"
+                    role="status"
+                ></p>
             </section>
 
+            <!-- TABLA DE FACTURAS -->
             <section class="panel">
-                <div class="encabezado-panel">
-                    <h2>Facturas registradas</h2>
-                    <input id="buscar-admin" type="search"
-                           placeholder="Buscar factura o nombre..."
-                           aria-label="Buscar facturas">
+                <div class="encabezado-panel encabezado-tabla">
+                    <div>
+                        <span class="etiqueta">CONSULTA</span>
+                        <h2>Facturas registradas</h2>
+                    </div>
+
+                    <input
+                        id="buscar-admin"
+                        type="search"
+                        placeholder="Buscar factura o nombre..."
+                        aria-label="Buscar facturas"
+                    >
                 </div>
 
                 <div class="tabla-contenedor">
@@ -275,9 +654,12 @@
                                 <th>Acciones</th>
                             </tr>
                         </thead>
+
                         <tbody id="tabla-facturas-admin">
                             <tr>
-                                <td colspan="5">Cargando facturas...</td>
+                                <td colspan="5">
+                                    Cargando facturas...
+                                </td>
                             </tr>
                         </tbody>
                     </table>
@@ -286,6 +668,7 @@
         </section>
     </main>
 
+    <!-- JavaScript de la aplicación -->
     <script src="/static/js/app.js"></script>
 </body>
 </html>
