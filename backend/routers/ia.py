@@ -92,9 +92,10 @@ def analizar_factura(
         ) from error
 
     except Exception as error:
-        # El detalle técnico se registra en el servidor, no se expone
-        # al usuario ni se devuelve la clave de API.
-        print(f"Error al analizar documento con Gemini: {type(error).__name__}")
+        print(
+            f"Error al analizar documento con Gemini: "
+            f"{type(error).__name__}: {error}"
+        )
 
         raise HTTPException(
             status_code=502,
