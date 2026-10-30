@@ -2,11 +2,12 @@
 import json
 import os
 import re
+from pathlib import Path
 
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
-from pathlib import Path
+
 
 # Cargar las variables del archivo .env ubicado en la raíz del proyecto.
 
