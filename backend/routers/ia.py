@@ -1,12 +1,18 @@
+"""Endpoint autenticado para analizar facturas con Gemini."""
+
+import logging
+
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 
 from analizar_factura_ia import analizar_documento_con_gemini
+from ocr_service import analizar_documento_ocr
 
 
 router = APIRouter(
     prefix="/ia",
     tags=["Inteligencia Artificial"]
 )
+logger = logging.getLogger(__name__)
 
 # Tamaño máximo permitido: 10 MB.
 TAMANO_MAXIMO = 10 * 1024 * 1024
@@ -17,6 +23,7 @@ EXTENSIONES_PERMITIDAS = {
     ".jpg",
     ".jpeg",
     ".webp",
+    ".docx",
 }
 
 
@@ -53,7 +60,7 @@ def analizar_factura(
     if extension_archivo not in EXTENSIONES_PERMITIDAS:
         raise HTTPException(
             status_code=400,
-            detail="Formato no permitido. Usa PDF, PNG, JPG o WEBP."
+            detail="Formato no permitido. Usa PDF, DOCX, PNG, JPG o WEBP."
         )
 
     try:
@@ -91,8 +98,41 @@ def analizar_factura(
             detail=str(error)
         ) from error
 
+    except RuntimeError as error:
+        if "GEMINI_API_KEY" not in str(error):
+            raise HTTPException(
+                status_code=503,
+                detail=str(error),
+            ) from error
+        if extension_archivo == ".pdf":
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Gemini no está configurado. Define GEMINI_API_KEY "
+                    "para analizar archivos PDF con IA."
+                ),
+            ) from error
+        try:
+            datos = analizar_documento_ocr(contenido, nombre_archivo)
+        except (RuntimeError, ValueError) as fallback_error:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Gemini no está configurado y el OCR local no pudo "
+                    f"procesar la imagen: {fallback_error}"
+                ),
+            ) from fallback_error
+        datos["advertencias"].insert(
+            0,
+            "Gemini no está configurado; se mostró el resultado del OCR local.",
+        )
+        return {
+            "mensaje": "Se usó OCR local como respaldo de IA.",
+            "datos": datos,
+        }
+
     except Exception as error:
-        print(
+        logger.exception(
             f"Error al analizar documento con Gemini: "
             f"{type(error).__name__}: {error}"
         )

@@ -1,15 +1,19 @@
 
+"""Conexiones, seguridad de contraseñas y migraciones SQLite."""
+
 import os
 import sqlite3
 import hashlib
 import secrets
 from pathlib import Path
 
+# Ubicación única de la base de datos del sistema.
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "facturas.db"
 
 
 def obtener_conexion():
+    """Abre una conexión SQLite con filas accesibles por nombre."""
     conexion = sqlite3.connect(DB_PATH, timeout=10)
     conexion.row_factory = sqlite3.Row
     conexion.execute("PRAGMA foreign_keys = ON")
@@ -43,7 +47,9 @@ def verificar_contrasena(contrasena, hash_guardado):
         return False
 
 
+# Creación y actualización de las tablas relacionadas con facturas.
 def inicializar_bd():
+    """Crea y actualiza las tablas principales de facturas."""
     conexion = obtener_conexion()
 
     try:
@@ -71,6 +77,14 @@ def inicializar_bd():
                 ALTER TABLE facturas
                 ADD COLUMN usuario_id INTEGER REFERENCES usuarios(id)
             """)
+        if "nit_proveedor" not in columnas:
+            conexion.execute("""
+                ALTER TABLE facturas ADD COLUMN nit_proveedor TEXT
+            """)
+        if "proveedor" not in columnas:
+            conexion.execute("""
+                ALTER TABLE facturas ADD COLUMN proveedor TEXT
+            """)
 
         conexion.commit()
 
@@ -79,6 +93,7 @@ def inicializar_bd():
 
 
 def inicializar_bd_usuarios():
+    """Crea la tabla de clientes si todavía no existe."""
     conexion = obtener_conexion()
 
     try:
@@ -96,6 +111,7 @@ def inicializar_bd_usuarios():
 
 
 def inicializar_bd_admin():
+    """Crea la tabla de administradores y el administrador configurado."""
     conexion = obtener_conexion()
 
     try:
@@ -128,5 +144,45 @@ def inicializar_bd_admin():
 
         conexion.commit()
 
+    finally:
+        conexion.close()
+
+
+def inicializar_bd_catalogo():
+    """Crea las tablas de productos y detalles de factura."""
+    conexion = obtener_conexion()
+
+    try:
+        conexion.execute("""
+            CREATE TABLE IF NOT EXISTS productos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                codigo TEXT NOT NULL UNIQUE,
+                nombre TEXT NOT NULL,
+                descripcion TEXT NOT NULL DEFAULT '',
+                precio REAL NOT NULL CHECK (precio >= 0),
+                iva_porcentaje REAL NOT NULL DEFAULT 0 CHECK (
+                    iva_porcentaje >= 0 AND iva_porcentaje <= 100
+                ),
+                activo INTEGER NOT NULL DEFAULT 1
+            )
+        """)
+        conexion.execute("""
+            CREATE TABLE IF NOT EXISTS factura_detalles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                factura_id INTEGER NOT NULL REFERENCES facturas(id)
+                    ON DELETE CASCADE,
+                producto_id INTEGER REFERENCES productos(id),
+                nombre TEXT NOT NULL,
+                descripcion TEXT NOT NULL DEFAULT '',
+                cantidad REAL NOT NULL CHECK (cantidad > 0),
+                valor_unitario REAL NOT NULL CHECK (valor_unitario >= 0),
+                descuento REAL NOT NULL DEFAULT 0 CHECK (descuento >= 0),
+                iva_porcentaje REAL NOT NULL DEFAULT 0 CHECK (
+                    iva_porcentaje >= 0 AND iva_porcentaje <= 100
+                ),
+                subtotal REAL NOT NULL CHECK (subtotal >= 0)
+            )
+        """)
+        conexion.commit()
     finally:
         conexion.close()

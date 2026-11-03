@@ -1,674 +1,182 @@
 <!DOCTYPE html>
+<!-- Interfaz principal de ingreso, clientes, administración, OCR e IA. -->
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <meta
-        name="description"
-        content="Sistema de facturación con registro, administración y análisis de documentos mediante inteligencia artificial."
-    >
-
-    <title>Sistema de facturación</title>
-
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="SistemaFacturas: catálogo, OCR, IA y gestión de facturas.">
+    <title>SistemaFacturas</title>
     <link rel="stylesheet" href="/static/css/estilos.css">
 </head>
-
 <body>
-    <main class="contenedor">
-
-        <!-- ==================================================
-             PANTALLA INICIAL
-             ================================================== -->
-        <section id="vista-ingreso" class="pantalla">
-            <div class="marca">
-                <div class="logo">SF</div>
-                <span>Sistema de facturación</span>
-            </div>
-
-            <div class="bienvenida">
-                <span class="etiqueta">BIENVENIDO</span>
-
-                <h1>Bienvenido al sistema de facturación</h1>
-
-                <p>
-                    Administra tus facturas y utiliza herramientas
-                    inteligentes para facilitar el registro de información.
-                </p>
-
-                <div class="opciones-ingreso">
-                    <button
-                        type="button"
-                        id="btn-mostrar-cliente"
-                        class="opcion"
-                    >
-                        <span class="icono">👤</span>
-
-                        <span class="texto-opcion">
-                            <strong>Ingresar cliente</strong>
-                            <small>Registrar tus facturas</small>
-                        </span>
-
-                        <span class="flecha">›</span>
-                    </button>
-
-                    <button
-                        type="button"
-                        id="btn-mostrar-admin"
-                        class="opcion"
-                    >
-                        <span class="icono">🛡️</span>
-
-                        <span class="texto-opcion">
-                            <strong>Ingresar administrador</strong>
-                            <small>Administrar el sistema</small>
-                        </span>
-
-                        <span class="flecha">›</span>
-                    </button>
+<main class="app-shell">
+    <!-- Pantalla pública para elegir el tipo de ingreso. -->
+    <section id="vista-ingreso" class="view">
+        <header class="public-header">
+            <a class="brand" href="/">
+                <span class="brand-mark">SF</span>
+                <span>SistemaFacturas</span>
+            </a>
+        </header>
+        <div class="hero">
+            <div class="hero-copy">
+                <span class="eyebrow">GESTIÓN INTELIGENTE DE FACTURAS</span>
+                <h1>Convierte tus facturas en datos claros y útiles.</h1>
+                <p>Administra productos, extrae información con OCR y revisa facturas estructuradas con IA.</p>
+                <div class="feature-list">
+                    <div><span class="feature-icon">▦</span><strong>Catálogo</strong><small>Productos y precios</small></div>
+                    <div><span class="feature-icon">◈</span><strong>OCR</strong><small>Escaneo de documentos</small></div>
+                    <div><span class="feature-icon">✦</span><strong>IA</strong><small>Datos estructurados</small></div>
                 </div>
-
-                <p
-                    id="mensaje-ingreso"
-                    class="mensaje"
-                    role="status"
-                ></p>
             </div>
-        </section>
-
-        <!-- ==================================================
-             INGRESO DE CLIENTE
-             ================================================== -->
-        <section
-            id="vista-login-cliente"
-            class="pantalla oculta"
-        >
-            <div class="panel acceso">
-                <button
-                    type="button"
-                    class="volver"
-                    data-volver
-                >
-                    ← Volver
+            <div class="login-choice">
+                <span class="eyebrow">BIENVENIDO</span>
+                <h2>¿Cómo deseas ingresar?</h2>
+                <button type="button" class="choice-card" id="btn-mostrar-cliente">
+                    <span class="choice-icon">👤</span><span><strong>Cliente</strong><small>Registrar tus facturas</small></span><b>→</b>
                 </button>
+                <button type="button" class="choice-card" id="btn-mostrar-admin">
+                    <span class="choice-icon">🛡</span><span><strong>Administrador</strong><small>Gestionar catálogo y facturas</small></span><b>→</b>
+                </button>
+                <p id="mensaje-ingreso" class="message" role="status"></p>
+            </div>
+        </div>
+    </section>
 
-                <span class="etiqueta">ACCESO DE CLIENTES</span>
+    <!-- Formulario de autenticación y registro de clientes. -->
+    <section id="vista-login-cliente" class="view view-centered oculta">
+        <div class="auth-card">
+            <button type="button" class="back-link" data-volver>← Volver</button>
+            <span class="eyebrow">ACCESO DE CLIENTES</span><h1>Ingresar como cliente</h1>
+            <p>Usa tu nombre e identificación para continuar.</p>
+            <form id="form-ingreso-cliente" class="stack-form">
+                <label for="nombre-ingreso">Nombre completo</label><input id="nombre-ingreso" maxlength="150" autocomplete="name" required>
+                <label for="identificacion-ingreso">Identificación</label><input id="identificacion-ingreso" maxlength="50" required>
+                <button class="button button-primary" type="submit">Ingresar</button>
+            </form>
+            <p id="mensaje-cliente" class="message" role="status"></p>
+        </div>
+    </section>
 
-                <h1>Ingresar como cliente</h1>
+    <!-- Formulario de autenticación administrativa. -->
+    <section id="vista-login-admin" class="view view-centered oculta">
+        <div class="auth-card">
+            <button type="button" class="back-link" data-volver>← Volver</button>
+            <span class="eyebrow">ACCESO RESTRINGIDO</span><h1>Panel administrativo</h1>
+            <p>Administra productos, facturas, OCR e IA.</p>
+            <form id="form-ingreso-admin" class="stack-form">
+                <label for="usuario-admin">Usuario</label><input id="usuario-admin" autocomplete="username" required>
+                <label for="contrasena-admin">Contraseña</label><input id="contrasena-admin" type="password" autocomplete="current-password" required>
+                <button class="button button-primary" type="submit">Ingresar al panel</button>
+            </form>
+            <p id="mensaje-admin" class="message" role="status"></p>
+        </div>
+    </section>
 
-                <p>
-                    Escribe tu nombre y número de identificación.
-                </p>
-
-                <form id="form-ingreso-cliente">
-                    <label for="nombre-ingreso">
-                        Nombre completo
-                    </label>
-
-                    <input
-                        id="nombre-ingreso"
-                        name="nombre"
-                        type="text"
-                        maxlength="120"
-                        placeholder="Ej. Pepito Pérez"
-                        autocomplete="name"
-                        required
-                    >
-
-                    <label for="identificacion-ingreso">
-                        Identificación
-                    </label>
-
-                    <input
-                        id="identificacion-ingreso"
-                        name="identificacion"
-                        type="text"
-                        maxlength="40"
-                        placeholder="Número de identificación"
-                        required
-                    >
-
-                    <button
-                        type="submit"
-                        class="principal ancho"
-                    >
-                        Ingresar
-                    </button>
+    <!-- Espacio de trabajo completo del cliente. -->
+    <section id="vista-cliente" class="workspace oculta">
+        <aside class="sidebar">
+            <a class="sidebar-brand brand" href="/"><span class="brand-mark">SF</span><strong>SistemaFacturas</strong></a>
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-target="cliente-inicio">⌂ <span>Inicio</span></button>
+                <button class="nav-item" data-target="cliente-ocr">◈ <span>OCR</span></button>
+                <button class="nav-item" data-target="cliente-factura">▣ <span>Factura</span></button>
+                <button class="nav-item" data-target="cliente-ia">✦ <span>IA</span></button>
+            </nav>
+            <div class="sidebar-note">Procesamiento seguro<br><small>OCR + IA</small></div>
+        </aside>
+        <div class="workspace-main">
+            <header class="topbar" id="cliente-inicio"><div><span class="eyebrow">PORTAL DEL CLIENTE</span><strong id="saludo-cliente">Bienvenido</strong></div><button class="button button-secondary" id="btn-salir-cliente" type="button">Cerrar sesión</button></header>
+            <section class="intro"><h1>Procesa tu factura</h1><p>Carga un documento o registra los productos con cálculo automático.</p></section>
+            <!-- Historial e impresión de facturas del cliente. -->
+            <section class="card" id="cliente-historial">
+                <div class="section-heading"><span class="section-icon blue">▤</span><div><span class="eyebrow">MI HISTORIAL</span><h2>Mis facturas</h2><p>Consulta, imprime y revisa las facturas asociadas a tu cuenta.</p></div></div>
+                <div class="stats"><div class="stat-card"><span>Facturas registradas</span><strong id="total-facturas-cliente">0</strong></div><div class="stat-card green-stat"><span>Total facturado</span><strong id="valor-total-cliente">$0</strong></div></div>
+                <div class="table-wrap"><table><thead><tr><th>Número</th><th>Fecha</th><th>Total</th><th>Acciones</th></tr></thead><tbody id="tabla-facturas-cliente"><tr><td colspan="4">Cargando...</td></tr></tbody></table></div>
+            </section>
+            <!-- Carga y análisis de documentos del cliente. -->
+            <section class="card extraction-card" id="cliente-ocr">
+                <div class="section-heading" id="cliente-ia"><span class="section-icon">✦</span><div><span class="eyebrow">OCR + INTELIGENCIA ARTIFICIAL</span><h2>Extraer datos de factura</h2><p>Elige OCR local para texto o IA para estructurar productos.</p></div></div>
+                <input type="file" id="archivo-ocr-cliente" accept=".pdf,.docx,.png,.jpg,.jpeg,.webp">
+                <div class="button-row"><button class="button button-primary" id="btn-ocr-cliente" type="button">Analizar con IA</button><button class="button button-secondary" id="btn-ocr-local-cliente" type="button">Extraer con OCR</button></div>
+                <p id="mensaje-ocr-cliente" class="message" role="status"></p><div id="datos-estructurados-cliente" class="structured-data oculta"></div><pre id="resultado-ocr-cliente" class="ocr-result oculta"></pre>
+            </section>
+            <!-- Registro de factura y cálculo de productos. -->
+            <section class="card" id="cliente-factura">
+                <div class="section-heading"><span class="section-icon green">▣</span><div><span class="eyebrow">REGISTRO</span><h2>Registrar factura</h2></div></div>
+                <form id="form-factura-cliente" class="invoice-form">
+                    <label>Número interno<input id="codigo-cliente" readonly></label>
+                    <label>Proveedor<input id="proveedor-factura-cliente"></label>
+                    <label>NIT proveedor<input id="nit-factura-cliente"></label>
+                    <label>Cliente<input id="nombre-factura-cliente" required></label>
+                    <label>Fecha<input id="fecha-cliente" type="date" required></label>
+                    <div class="detail-block full"><div class="detail-title"><strong>Productos</strong><button class="button button-secondary button-small" type="button" id="btn-agregar-detalle-cliente">+ Producto</button></div><div id="detalles-cliente" class="detail-list"></div></div>
+                    <div class="totals full" id="totales-cliente"></div>
+                    <label>Total de factura<input id="valor-cliente" type="number" min="0" step="0.01" required></label>
+                    <div class="full"><button class="button button-primary" id="btn-registrar-cliente" type="submit">Guardar factura</button></div>
                 </form>
+                <p id="mensaje-factura-cliente" class="message" role="status"></p>
+                <div id="acciones-factura-cliente" class="button-row oculta"><button id="btn-imprimir-cliente" class="button button-success" type="button">Imprimir factura</button></div>
+            </section>
+        </div>
+    </section>
 
-                <p
-                    id="mensaje-cliente"
-                    class="mensaje"
-                    role="status"
-                ></p>
-            </div>
-        </section>
-
-        <!-- ==================================================
-             INGRESO DE ADMINISTRADOR
-             ================================================== -->
-        <section
-            id="vista-login-admin"
-            class="pantalla oculta"
-        >
-            <div class="panel acceso">
-                <button
-                    type="button"
-                    class="volver"
-                    data-volver
-                >
-                    ← Volver
-                </button>
-
-                <span class="etiqueta">ACCESO RESTRINGIDO</span>
-
-                <h1>Ingresar como administrador</h1>
-
-                <p>
-                    Introduce tus credenciales de administración.
-                </p>
-
-                <form id="form-ingreso-admin">
-                    <label for="usuario-admin">
-                        Usuario
-                    </label>
-
-                    <input
-                        id="usuario-admin"
-                        name="user"
-                        type="text"
-                        autocomplete="username"
-                        required
-                    >
-
-                    <label for="contrasena-admin">
-                        Contraseña
-                    </label>
-
-                    <input
-                        id="contrasena-admin"
-                        name="contrasena"
-                        type="password"
-                        autocomplete="current-password"
-                        required
-                    >
-
-                    <button
-                        type="submit"
-                        class="principal ancho"
-                    >
-                        Ingresar al panel
-                    </button>
+    <!-- Espacio de trabajo completo del administrador. -->
+    <section id="vista-admin" class="workspace oculta">
+        <aside class="sidebar">
+            <a class="sidebar-brand brand" href="/"><span class="brand-mark">SF</span><strong>SistemaFacturas</strong></a>
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-target="admin-inicio">⌂ <span>Inicio</span></button>
+                <button class="nav-item" data-target="admin-catalogo">▦ <span>Catálogo</span></button>
+                <button class="nav-item" data-target="admin-ocr">◈ <span>OCR</span></button>
+                <button class="nav-item" data-target="admin-facturas">▣ <span>Facturas</span></button>
+                <button class="nav-item" data-target="admin-usuarios">♙ <span>Usuarios</span></button>
+                <button class="nav-item" data-target="admin-ia">✦ <span>IA</span></button>
+            </nav>
+            <div class="sidebar-note">Panel administrativo<br><small>Control total</small></div>
+        </aside>
+        <div class="workspace-main">
+            <header class="topbar" id="admin-inicio"><div><span class="eyebrow">PANEL ADMINISTRATIVO</span><strong id="saludo-admin">Bienvenido</strong></div><div class="topbar-actions"><span class="role-badge">Administrador</span><button class="button button-secondary" id="btn-salir-admin" type="button">Cerrar sesión</button></div></header>
+            <div class="stats"><div class="stat-card"><span>Facturas registradas</span><strong id="total-facturas">0</strong></div><div class="stat-card green-stat"><span>Valor acumulado</span><strong id="valor-total">$0</strong></div></div>
+            <!-- Gestión de usuarios y resumen de facturación. -->
+            <section class="card" id="admin-usuarios">
+                <div class="section-heading"><span class="section-icon blue">♙</span><div><span class="eyebrow">ADMINISTRACIÓN</span><h2>Gestión de usuarios</h2><p>Consulta y actualiza los clientes registrados. El historial se conserva.</p></div></div>
+                <div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Identificación</th><th>Facturas</th><th>Total facturado</th><th>Acciones</th></tr></thead><tbody id="tabla-usuarios-admin"><tr><td colspan="5">Cargando...</td></tr></tbody></table></div>
+            </section>
+            <!-- Análisis OCR e IA para el administrador. -->
+            <section class="card extraction-card" id="admin-ocr">
+                <div class="section-heading" id="admin-ia"><span class="section-icon">✦</span><div><span class="eyebrow">OCR + INTELIGENCIA ARTIFICIAL</span><h2>Procesar documento</h2><p>La IA identifica la factura y sus productos para revisión.</p></div></div>
+                <input type="file" id="archivo-ocr-admin" accept=".pdf,.docx,.png,.jpg,.jpeg,.webp">
+                <div class="button-row"><button class="button button-primary" id="btn-ocr-admin" type="button">Analizar con IA</button><button class="button button-secondary" id="btn-ocr-local-admin" type="button">Extraer con OCR</button></div>
+                <p id="mensaje-ocr-admin" class="message" role="status"></p><div id="datos-estructurados-admin" class="structured-data oculta"></div><pre id="resultado-ocr-admin" class="ocr-result oculta"></pre>
+            </section>
+            <!-- Consulta, edición, eliminación e impresión de facturas. -->
+            <section class="card" id="admin-facturas">
+                <div class="section-heading"><span class="section-icon green">▣</span><div><span class="eyebrow">GESTIÓN</span><h2 id="titulo-formulario-admin">Registrar factura</h2></div></div>
+                <form id="form-factura-admin" class="invoice-form">
+                    <label>Número interno<input id="codigo-admin" readonly></label><label>Proveedor<input id="proveedor-factura-admin"></label><label>NIT proveedor<input id="nit-factura-admin"></label><label>Cliente<input id="nombre-factura-admin" required></label><label>Fecha<input id="fecha-admin" type="date" required></label>
+                    <div class="detail-block full"><div class="detail-title"><strong>Productos</strong><button class="button button-secondary button-small" type="button" id="btn-agregar-detalle">+ Producto</button></div><div id="detalles-admin" class="detail-list"></div></div>
+                    <div class="totals full" id="totales-admin"></div>
+                    <label>Total de factura<input id="valor-admin" type="number" min="0" step="0.01" required></label>
+                    <div class="button-row full"><button class="button button-primary" id="btn-guardar-admin" type="submit">Guardar factura</button><button class="button button-secondary oculta" id="btn-cancelar-edicion" type="button">Cancelar</button></div>
                 </form>
-
-                <p
-                    id="mensaje-admin"
-                    class="mensaje"
-                    role="status"
-                ></p>
-            </div>
-        </section>
-
-        <!-- ==================================================
-             VISTA DEL CLIENTE
-             ================================================== -->
-        <section id="vista-cliente" class="oculta">
-
-            <header class="barra-superior">
-                <div class="marca">
-                    <div class="logo">SF</div>
-                    <span>Sistema de facturación</span>
-                </div>
-
-                <button
-                    type="button"
-                    class="secundario"
-                    id="btn-salir-cliente"
-                >
-                    Cerrar sesión
-                </button>
-            </header>
-
-            <div class="saludo">
-                <span class="etiqueta">PORTAL DEL CLIENTE</span>
-
-                <h1 id="saludo-cliente">Bienvenido</h1>
-
-                <p>
-                    Registra tus facturas y revisa la información
-                    antes de guardarla.
-                </p>
-            </div>
-
-            <!-- PANEL OCR DEL CLIENTE -->
-            <section class="panel panel-ocr">
-                <div class="encabezado-ocr">
-                    <div class="icono-ocr">✦</div>
-
-                    <div>
-                        <span class="etiqueta">
-                            INTELIGENCIA ARTIFICIAL
-                        </span>
-
-                        <h2>Analizar factura con IA</h2>
-
-                        <p>
-                            Selecciona un documento para intentar extraer
-                            automáticamente el cliente, la fecha y el total.
-                        </p>
-                    </div>
-                </div>
-
-                <div class="campo-archivo">
-                    <label for="archivo-ocr-cliente">
-                        Seleccionar factura
-                    </label>
-
-                    <input
-                        type="file"
-                        id="archivo-ocr-cliente"
-                        accept=".pdf,.png,.jpg,.jpeg,.webp"
-                    >
-
-                    <small>
-                        Formatos permitidos: PDF, PNG, JPG, JPEG y WEBP.
-                        Tamaño máximo: 10 MB.
-                    </small>
-                </div>
-
-                <button
-                    type="button"
-                    id="btn-ocr-cliente"
-                    class="boton-ocr"
-                >
-                    ✦ Analizar documento
-                </button>
-
-                <p
-                    id="mensaje-ocr-cliente"
-                    class="mensaje"
-                    role="status"
-                    aria-live="polite"
-                ></p>
-
-                <p class="ayuda-ocr">
-                    Revisa la información extraída. El análisis no registra
-                    la factura ni modifica el consecutivo automáticamente.
-                </p>
+                <p id="mensaje-factura-admin" class="message" role="status"></p>
             </section>
-
-            <!-- FORMULARIO ORIGINAL DE FACTURA DEL CLIENTE -->
-            <section class="panel">
-                <div class="encabezado-panel">
-                    <div>
-                        <span class="etiqueta">REGISTRO</span>
-                        <h2>Registrar factura</h2>
-                    </div>
-                </div>
-
-                <form
-                    id="form-factura-cliente"
-                    class="formulario"
-                >
-                    <div class="campo">
-                        <label for="codigo-cliente">
-                            Número de factura
-                        </label>
-
-                        <input
-                            id="codigo-cliente"
-                            type="text"
-                            placeholder="Generando..."
-                            readonly
-                        >
-
-                        <small>
-                            Este número se asigna automáticamente.
-                        </small>
-                    </div>
-
-                    <div class="campo">
-                        <label for="nombre-factura-cliente">
-                            Nombre que aparece en la factura
-                        </label>
-
-                        <input
-                            id="nombre-factura-cliente"
-                            name="cliente"
-                            type="text"
-                            maxlength="150"
-                            placeholder="Nombre completo"
-                            required
-                        >
-                    </div>
-
-                    <div class="campo">
-                        <label for="fecha-cliente">
-                            Fecha
-                        </label>
-
-                        <input
-                            id="fecha-cliente"
-                            name="fecha"
-                            type="date"
-                            required
-                        >
-                    </div>
-
-                    <div class="campo">
-                        <label for="valor-cliente">
-                            Valor
-                        </label>
-
-                        <input
-                            id="valor-cliente"
-                            name="total"
-                            type="number"
-                            min="0.01"
-                            step="0.01"
-                            placeholder="0.00"
-                            required
-                        >
-                    </div>
-
-                    <div class="acciones">
-                        <button
-                            type="submit"
-                            class="principal"
-                            id="btn-registrar-cliente"
-                        >
-                            Registrar factura
-                        </button>
-                    </div>
-                </form>
-
-                <p
-                    id="mensaje-factura-cliente"
-                    class="mensaje"
-                    role="status"
-                ></p>
-
-                <div
-                    id="acciones-factura-cliente"
-                    class="acciones oculta"
-                >
-                    <button
-                        type="button"
-                        id="btn-imprimir-cliente"
-                        class="principal"
-                        disabled
-                    >
-                        Imprimir factura
-                    </button>
-                </div>
+            <!-- Alta e importación masiva del catálogo de productos. -->
+            <section class="card" id="admin-catalogo">
+                <div class="section-heading"><span class="section-icon blue">▦</span><div><span class="eyebrow">CATÁLOGO</span><h2>Productos y precios</h2><p>El código carga automáticamente nombre, precio e IVA.</p></div></div>
+                <form id="form-producto" class="catalog-form"><input id="producto-codigo" placeholder="Código" required><input id="producto-nombre" placeholder="Nombre" required><input id="producto-descripcion" placeholder="Descripción"><input id="producto-precio" type="number" min="0" step="0.01" placeholder="Precio" required><input id="producto-iva" type="number" min="0" max="100" step="0.01" placeholder="IVA %" value="0"><button class="button button-primary" type="submit">Guardar producto</button></form>
+                <form id="form-importar-productos" class="import-form"><label for="archivo-productos">Importar CSV o Excel</label><input id="archivo-productos" type="file" accept=".csv,.xlsx" required><button class="button button-secondary" type="submit">Importar catálogo</button></form>
+                <p id="mensaje-catalogo" class="message" role="status"></p><div id="lista-productos" class="product-list"></div>
             </section>
-        </section>
-
-        <!-- ==================================================
-             VISTA DEL ADMINISTRADOR
-             ================================================== -->
-        <section id="vista-admin" class="oculta">
-
-            <header class="barra-superior">
-                <div class="marca">
-                    <div class="logo">SF</div>
-                    <span>Sistema de facturación</span>
-                </div>
-
-                <div class="acciones-superiores">
-                    <span class="rol-admin">Administrador</span>
-
-                    <button
-                        type="button"
-                        class="secundario"
-                        id="btn-salir-admin"
-                    >
-                        Cerrar sesión
-                    </button>
-                </div>
-            </header>
-
-            <div class="saludo">
-                <span class="etiqueta">PANEL DE ADMINISTRACIÓN</span>
-
-                <h1 id="saludo-admin">
-                    Bienvenido, administrador
-                </h1>
-
-                <p>
-                    Consulta y administra las facturas registradas.
-                </p>
-            </div>
-
-            <!-- TARJETAS DE RESUMEN -->
-            <div class="resumen">
-                <article class="tarjeta tarjeta-azul">
-                    <div class="tarjeta-icono">▤</div>
-
-                    <span>Total de facturas</span>
-
-                    <strong id="total-facturas">0</strong>
-
-                    <small>Facturas registradas</small>
-                </article>
-
-                <article class="tarjeta tarjeta-verde">
-                    <div class="tarjeta-icono">＄</div>
-
-                    <span>Valor acumulado</span>
-
-                    <strong id="valor-total">$0</strong>
-
-                    <small>Valor total registrado</small>
-                </article>
-            </div>
-
-            <!-- PANEL OCR DEL ADMINISTRADOR -->
-            <section class="panel panel-ocr">
-                <div class="encabezado-ocr">
-                    <div class="icono-ocr">✦</div>
-
-                    <div>
-                        <span class="etiqueta">
-                            INTELIGENCIA ARTIFICIAL
-                        </span>
-
-                        <h2>Analizar factura con IA</h2>
-
-                        <p>
-                            Extrae datos de una factura para facilitar
-                            el registro o la actualización de información.
-                        </p>
-                    </div>
-                </div>
-
-                <div class="campo-archivo">
-                    <label for="archivo-ocr-admin">
-                        Seleccionar factura
-                    </label>
-
-                    <input
-                        type="file"
-                        id="archivo-ocr-admin"
-                        accept=".pdf,.png,.jpg,.jpeg,.webp"
-                    >
-
-                    <small>
-                        Formatos permitidos: PDF, PNG, JPG, JPEG y WEBP.
-                        Tamaño máximo: 10 MB.
-                    </small>
-                </div>
-
-                <button
-                    type="button"
-                    id="btn-ocr-admin"
-                    class="boton-ocr"
-                >
-                    ✦ Analizar documento
-                </button>
-
-                <p
-                    id="mensaje-ocr-admin"
-                    class="mensaje"
-                    role="status"
-                    aria-live="polite"
-                ></p>
-
-                <p class="ayuda-ocr">
-                    Verifica los campos extraídos antes de guardar.
-                    La IA no registra ni elimina facturas por sí sola.
-                </p>
+            <!-- Área final de estado y mensajes del administrador. -->
+            <section class="card">
+                <div class="section-heading"><span class="section-icon blue">▤</span><div><span class="eyebrow">CONSULTA</span><h2>Facturas registradas</h2></div><input id="buscar-admin" class="search" type="search" placeholder="Buscar..."></div>
+                <div class="table-wrap"><table><thead><tr><th>Número</th><th>Cliente</th><th>Fecha</th><th>Total</th><th>Acciones</th></tr></thead><tbody id="tabla-facturas-admin"><tr><td colspan="5">Cargando...</td></tr></tbody></table></div>
             </section>
-
-            <!-- FORMULARIO DE ADMINISTRACIÓN -->
-            <section class="panel">
-                <div class="encabezado-panel">
-                    <div>
-                        <span class="etiqueta">GESTIÓN</span>
-
-                        <h2 id="titulo-formulario-admin">
-                            Registrar factura
-                        </h2>
-                    </div>
-
-                    <span class="etiqueta etiqueta-admin">
-                        ADMINISTRACIÓN
-                    </span>
-                </div>
-
-                <form
-                    id="form-factura-admin"
-                    class="formulario"
-                >
-                    <div class="campo">
-                        <label for="codigo-admin">
-                            Número de factura
-                        </label>
-
-                        <input
-                            id="codigo-admin"
-                            type="text"
-                            readonly
-                            placeholder="Generando..."
-                        >
-
-                        <small>
-                            Asignado automáticamente al crear.
-                        </small>
-                    </div>
-
-                    <div class="campo">
-                        <label for="nombre-factura-admin">
-                            Nombre que aparece en la factura
-                        </label>
-
-                        <input
-                            id="nombre-factura-admin"
-                            name="cliente"
-                            type="text"
-                            maxlength="150"
-                            placeholder="Nombre completo"
-                            required
-                        >
-                    </div>
-
-                    <div class="campo">
-                        <label for="fecha-admin">
-                            Fecha
-                        </label>
-
-                        <input
-                            id="fecha-admin"
-                            name="fecha"
-                            type="date"
-                            required
-                        >
-                    </div>
-
-                    <div class="campo">
-                        <label for="valor-admin">
-                            Valor
-                        </label>
-
-                        <input
-                            id="valor-admin"
-                            name="total"
-                            type="number"
-                            min="0.01"
-                            step="0.01"
-                            placeholder="0.00"
-                            required
-                        >
-                    </div>
-
-                    <div class="acciones">
-                        <button
-                            type="submit"
-                            class="principal"
-                            id="btn-guardar-admin"
-                        >
-                            Registrar factura
-                        </button>
-
-                        <button
-                            type="button"
-                            class="secundario oculta"
-                            id="btn-cancelar-edicion"
-                        >
-                            Cancelar edición
-                        </button>
-                    </div>
-                </form>
-
-                <p
-                    id="mensaje-factura-admin"
-                    class="mensaje"
-                    role="status"
-                ></p>
-            </section>
-
-            <!-- TABLA DE FACTURAS -->
-            <section class="panel">
-                <div class="encabezado-panel encabezado-tabla">
-                    <div>
-                        <span class="etiqueta">CONSULTA</span>
-                        <h2>Facturas registradas</h2>
-                    </div>
-
-                    <input
-                        id="buscar-admin"
-                        type="search"
-                        placeholder="Buscar factura o nombre..."
-                        aria-label="Buscar facturas"
-                    >
-                </div>
-
-                <div class="tabla-contenedor">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Número</th>
-                                <th>Nombre</th>
-                                <th>Fecha</th>
-                                <th>Valor</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-
-                        <tbody id="tabla-facturas-admin">
-                            <tr>
-                                <td colspan="5">
-                                    Cargando facturas...
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-        </section>
-    </main>
-
-    <!-- JavaScript de la aplicación -->
-    <script src="/static/js/app.js"></script>
+        </div>
+    </section>
+</main>
+<script src="/static/js/app.js?v=20261103-0912"></script>
 </body>
 </html>
