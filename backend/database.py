@@ -160,12 +160,24 @@ def inicializar_bd_catalogo():
                 nombre TEXT NOT NULL,
                 descripcion TEXT NOT NULL DEFAULT '',
                 precio REAL NOT NULL CHECK (precio >= 0),
+                costo_adquisicion REAL NOT NULL DEFAULT 0 CHECK (costo_adquisicion >= 0),
                 iva_porcentaje REAL NOT NULL DEFAULT 0 CHECK (
                     iva_porcentaje >= 0 AND iva_porcentaje <= 100
                 ),
                 activo INTEGER NOT NULL DEFAULT 1
             )
         """)
+        columnas_productos = {
+            fila["name"]
+            for fila in conexion.execute(
+                "PRAGMA table_info(productos)"
+            ).fetchall()
+        }
+        if "costo_adquisicion" not in columnas_productos:
+            conexion.execute("""
+                ALTER TABLE productos
+                ADD COLUMN costo_adquisicion REAL NOT NULL DEFAULT 0
+            """)
         conexion.execute("""
             CREATE TABLE IF NOT EXISTS factura_detalles (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -176,6 +188,7 @@ def inicializar_bd_catalogo():
                 descripcion TEXT NOT NULL DEFAULT '',
                 cantidad REAL NOT NULL CHECK (cantidad > 0),
                 valor_unitario REAL NOT NULL CHECK (valor_unitario >= 0),
+                costo_adquisicion REAL NOT NULL DEFAULT 0 CHECK (costo_adquisicion >= 0),
                 descuento REAL NOT NULL DEFAULT 0 CHECK (descuento >= 0),
                 iva_porcentaje REAL NOT NULL DEFAULT 0 CHECK (
                     iva_porcentaje >= 0 AND iva_porcentaje <= 100
@@ -183,6 +196,17 @@ def inicializar_bd_catalogo():
                 subtotal REAL NOT NULL CHECK (subtotal >= 0)
             )
         """)
+        columnas_detalles = {
+            fila["name"]
+            for fila in conexion.execute(
+                "PRAGMA table_info(factura_detalles)"
+            ).fetchall()
+        }
+        if "costo_adquisicion" not in columnas_detalles:
+            conexion.execute("""
+                ALTER TABLE factura_detalles
+                ADD COLUMN costo_adquisicion REAL NOT NULL DEFAULT 0
+            """)
         conexion.commit()
     finally:
         conexion.close()

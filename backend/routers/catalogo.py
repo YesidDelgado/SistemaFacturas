@@ -2,10 +2,12 @@
 
 import csv
 import io
+import sqlite3
 import zipfile
 from xml.etree import ElementTree
 
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
+from pydantic import BaseModel, Field
 
 from database import obtener_conexion
 from schemas import ProductoCrear
@@ -13,6 +15,14 @@ from schemas import ProductoCrear
 
 # Router del catálogo y validación de permisos.
 router = APIRouter(prefix="/catalogo", tags=["Catálogo"])
+
+
+class BorradoCatalogo(BaseModel):
+    """Define el alcance y confirmación de un borrado de catálogo."""
+
+    modo: str = Field(pattern="^(todos|seleccionados)$")
+    codigos: list[str] = Field(default_factory=list, max_length=500)
+    confirmacion: str
 
 
 def _admin(request: Request):
@@ -27,15 +37,20 @@ def _guardar_productos(productos: list[dict]) -> int:
     try:
         for producto in productos:
             conexion.execute("""
-                INSERT INTO productos (codigo, nombre, descripcion, precio, iva_porcentaje)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO productos (
+                    codigo, nombre, descripcion, precio, costo_adquisicion, iva_porcentaje
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT(codigo) DO UPDATE SET
                     nombre=excluded.nombre, descripcion=excluded.descripcion,
-                    precio=excluded.precio, iva_porcentaje=excluded.iva_porcentaje
-            """, (
-                producto["codigo"], producto["nombre"], producto.get("descripcion", ""),
-                float(producto["precio"]), float(producto.get("iva_porcentaje", 0) or 0),
-            ))
+                        precio=excluded.precio, costo_adquisicion=excluded.costo_adquisicion,
+                        iva_porcentaje=excluded.iva_porcentaje
+                """, (
+                    producto["codigo"], producto["nombre"], producto.get("descripcion", ""),
+                    float(producto["precio"]),
+                    float(producto.get("costo_adquisicion", 0) or 0),
+                    float(producto.get("iva_porcentaje", 0) or 0),
+                ))
         conexion.commit()
         return len(productos)
     finally:
@@ -89,6 +104,8 @@ def _importar_tabla(contenido: bytes, nombre: str) -> list[dict]:
             "nombre": fila[indices["nombre"]].strip(),
             "descripcion": fila[indices["descripcion"]].strip() if "descripcion" in indices else "",
             "precio": fila[indices["precio"]].replace(",", ".").strip(),
+            "costo_adquisicion": fila[indices["costo_adquisicion"]].replace(",", ".").strip()
+                if "costo_adquisicion" in indices else "0",
             "iva_porcentaje": fila[indices["iva_porcentaje"]].replace(",", ".").strip()
                 if "iva_porcentaje" in indices else "0",
         })
@@ -120,6 +137,58 @@ def crear_producto(datos: ProductoCrear, request: Request):
         raise HTTPException(status_code=422, detail=str(error)) from error
 
 
+@router.post("/borrar")
+def borrar_catalogo(datos: BorradoCatalogo, request: Request):
+    """Borra productos seleccionados o todo el catálogo con confirmación."""
+    _admin(request)
+    esperado = "BORRAR TODO" if datos.modo == "todos" else "BORRAR SELECCIONADOS"
+    if datos.confirmacion.strip().upper() != esperado:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Escribe exactamente «{esperado}» para confirmar.",
+        )
+    if datos.modo == "seleccionados" and not datos.codigos:
+        raise HTTPException(status_code=400, detail="Selecciona al menos un código.")
+
+    conexion = obtener_conexion()
+    try:
+        if datos.modo == "todos":
+            filtro = "1 = 1"
+            parametros = ()
+        else:
+            marcadores = ",".join("?" for _ in datos.codigos)
+            filtro = f"codigo IN ({marcadores})"
+            parametros = tuple(datos.codigos)
+        referenciados = conexion.execute(
+            f"SELECT DISTINCT producto_id FROM factura_detalles "
+            f"WHERE producto_id IS NOT NULL AND producto_id IN "
+            f"(SELECT id FROM productos WHERE {filtro})",
+            parametros,
+        ).fetchall()
+        ids_protegidos = {fila["producto_id"] for fila in referenciados}
+        if ids_protegidos:
+            marcadores = ",".join("?" for _ in ids_protegidos)
+            conexion.execute(
+                f"UPDATE productos SET activo = 0 WHERE id IN ({marcadores})",
+                tuple(ids_protegidos),
+            )
+        parametros_borrado = parametros
+        eliminados = conexion.execute(
+            f"DELETE FROM productos WHERE {filtro}"
+            + (" AND id NOT IN (" + ",".join("?" for _ in ids_protegidos) + ")"
+               if ids_protegidos else ""),
+            parametros_borrado + tuple(ids_protegidos),
+        ).rowcount
+        conexion.commit()
+        return {
+            "mensaje": "Catálogo procesado.",
+            "eliminados": eliminados,
+            "protegidos": len(ids_protegidos),
+        }
+    finally:
+        conexion.close()
+
+
 @router.post("/importar")
 def importar_catalogo(request: Request, archivo: UploadFile = File(...)):
     """Importa productos desde un archivo CSV o XLSX."""
@@ -131,7 +200,14 @@ def importar_catalogo(request: Request, archivo: UploadFile = File(...)):
         productos = _importar_tabla(contenido, archivo.filename or "")
         cantidad = _guardar_productos(productos)
         return {"mensaje": "Catálogo importado.", "cantidad": cantidad}
-    except (ValueError, KeyError, zipfile.BadZipFile) as error:
+    except (
+        ValueError,
+        KeyError,
+        UnicodeDecodeError,
+        zipfile.BadZipFile,
+        ElementTree.ParseError,
+        sqlite3.IntegrityError,
+    ) as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     finally:
         archivo.file.close()

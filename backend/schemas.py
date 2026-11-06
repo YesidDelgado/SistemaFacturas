@@ -58,6 +58,7 @@ class DetalleFacturaCrear(BaseModel):
     descripcion: str = Field(default="", max_length=500)
     cantidad: float = Field(gt=0)
     valor_unitario: float = Field(ge=0)
+    costo_adquisicion: float | None = Field(default=None, ge=0)
     descuento: float = Field(default=0, ge=0)
     iva_porcentaje: float = Field(default=0, ge=0, le=100)
 
@@ -69,4 +70,5 @@ class ProductoCrear(BaseModel):
     nombre: str = Field(min_length=1, max_length=250)
     descripcion: str = Field(default="", max_length=500)
     precio: float = Field(ge=0)
+    costo_adquisicion: float = Field(default=0, ge=0)
     iva_porcentaje: float = Field(default=0, ge=0, le=100)

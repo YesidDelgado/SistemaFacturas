@@ -19,6 +19,7 @@ from routers.usuarios import router as usuarios_router
 from routers.ia import router as ia_router
 from routers.ocr import router as ocr_router
 from routers.catalogo import router as catalogo_router
+from routers.finanzas import router as finanzas_router
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR / "frontend"
@@ -57,6 +58,7 @@ app.include_router(facturas_router)
 app.include_router(ia_router)
 app.include_router(ocr_router)
 app.include_router(catalogo_router)
+app.include_router(finanzas_router)
 
 
 @app.get("/", include_in_schema=False)

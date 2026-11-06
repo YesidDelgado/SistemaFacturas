@@ -127,22 +127,18 @@
             <a class="sidebar-brand brand" href="/"><span class="brand-mark">SF</span><strong>SistemaFacturas</strong></a>
             <nav class="sidebar-nav">
                 <button class="nav-item active" data-target="admin-inicio">⌂ <span>Inicio</span></button>
-                <button class="nav-item" data-target="admin-catalogo">▦ <span>Catálogo</span></button>
+                <button class="nav-item" id="btn-abrir-catalogo" type="button">▦ <span>Catálogo</span></button>
                 <button class="nav-item" data-target="admin-ocr">◈ <span>OCR</span></button>
                 <button class="nav-item" data-target="admin-facturas">▣ <span>Facturas</span></button>
-                <button class="nav-item" data-target="admin-usuarios">♙ <span>Usuarios</span></button>
+                <button class="nav-item" id="btn-abrir-usuarios" type="button">♙ <span>Usuarios</span></button>
                 <button class="nav-item" data-target="admin-ia">✦ <span>IA</span></button>
+                <button class="nav-item" id="btn-abrir-finanzas" type="button">▤ <span>Análisis financiero</span></button>
             </nav>
             <div class="sidebar-note">Panel administrativo<br><small>Control total</small></div>
         </aside>
         <div class="workspace-main">
             <header class="topbar" id="admin-inicio"><div><span class="eyebrow">PANEL ADMINISTRATIVO</span><strong id="saludo-admin">Bienvenido</strong></div><div class="topbar-actions"><span class="role-badge">Administrador</span><button class="button button-secondary" id="btn-salir-admin" type="button">Cerrar sesión</button></div></header>
             <div class="stats"><div class="stat-card"><span>Facturas registradas</span><strong id="total-facturas">0</strong></div><div class="stat-card green-stat"><span>Valor acumulado</span><strong id="valor-total">$0</strong></div></div>
-            <!-- Gestión de usuarios y resumen de facturación. -->
-            <section class="card" id="admin-usuarios">
-                <div class="section-heading"><span class="section-icon blue">♙</span><div><span class="eyebrow">ADMINISTRACIÓN</span><h2>Gestión de usuarios</h2><p>Consulta y actualiza los clientes registrados. El historial se conserva.</p></div></div>
-                <div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Identificación</th><th>Facturas</th><th>Total facturado</th><th>Acciones</th></tr></thead><tbody id="tabla-usuarios-admin"><tr><td colspan="5">Cargando...</td></tr></tbody></table></div>
-            </section>
             <!-- Análisis OCR e IA para el administrador. -->
             <section class="card extraction-card" id="admin-ocr">
                 <div class="section-heading" id="admin-ia"><span class="section-icon">✦</span><div><span class="eyebrow">OCR + INTELIGENCIA ARTIFICIAL</span><h2>Procesar documento</h2><p>La IA identifica la factura y sus productos para revisión.</p></div></div>
@@ -162,21 +158,36 @@
                 </form>
                 <p id="mensaje-factura-admin" class="message" role="status"></p>
             </section>
-            <!-- Alta e importación masiva del catálogo de productos. -->
-            <section class="card" id="admin-catalogo">
-                <div class="section-heading"><span class="section-icon blue">▦</span><div><span class="eyebrow">CATÁLOGO</span><h2>Productos y precios</h2><p>El código carga automáticamente nombre, precio e IVA.</p></div></div>
-                <form id="form-producto" class="catalog-form"><input id="producto-codigo" placeholder="Código" required><input id="producto-nombre" placeholder="Nombre" required><input id="producto-descripcion" placeholder="Descripción"><input id="producto-precio" type="number" min="0" step="0.01" placeholder="Precio" required><input id="producto-iva" type="number" min="0" max="100" step="0.01" placeholder="IVA %" value="0"><button class="button button-primary" type="submit">Guardar producto</button></form>
-                <form id="form-importar-productos" class="import-form"><label for="archivo-productos">Importar CSV o Excel</label><input id="archivo-productos" type="file" accept=".csv,.xlsx" required><button class="button button-secondary" type="submit">Importar catálogo</button></form>
-                <p id="mensaje-catalogo" class="message" role="status"></p><div id="lista-productos" class="product-list"></div>
-            </section>
             <!-- Área final de estado y mensajes del administrador. -->
             <section class="card">
                 <div class="section-heading"><span class="section-icon blue">▤</span><div><span class="eyebrow">CONSULTA</span><h2>Facturas registradas</h2></div><input id="buscar-admin" class="search" type="search" placeholder="Buscar..."></div>
                 <div class="table-wrap"><table><thead><tr><th>Número</th><th>Cliente</th><th>Fecha</th><th>Total</th><th>Acciones</th></tr></thead><tbody id="tabla-facturas-admin"><tr><td colspan="5">Cargando...</td></tr></tbody></table></div>
             </section>
         </div>
+        <div id="modal-catalogo" class="admin-modal oculta" role="dialog" aria-modal="true" aria-labelledby="titulo-catalogo">
+            <section class="admin-modal-panel">
+                <div class="section-heading"><span class="section-icon blue">▦</span><div><span class="eyebrow">ADMINISTRACIÓN</span><h2 id="titulo-catalogo">Catálogo de productos</h2><p>Administra precios, costos, importación y productos disponibles.</p></div><button class="button button-secondary" id="btn-cerrar-catalogo" type="button">Cerrar</button></div>
+                <form id="form-producto" class="catalog-form"><input id="producto-codigo" placeholder="Código" required><input id="producto-nombre" placeholder="Nombre" required><input id="producto-descripcion" placeholder="Descripción"><input id="producto-precio" type="number" min="0" step="0.01" placeholder="Precio" required><input id="producto-costo" type="number" min="0" step="0.01" placeholder="Costo adquisición" required><input id="producto-iva" type="number" min="0" max="100" step="0.01" placeholder="IVA %" value="0"><button class="button button-primary" type="submit">Guardar producto</button></form>
+                <form id="form-importar-productos" class="import-form"><label for="archivo-productos">CSV/XLSX: codigo, nombre, precio, costo_adquisicion, iva_porcentaje</label><input id="archivo-productos" type="file" accept=".csv,.xlsx" required><button class="button button-secondary" type="submit">Importar catálogo</button></form>
+                <p id="mensaje-catalogo" class="message" role="status"></p><div id="lista-productos" class="product-list"></div>
+                <div class="button-row catalog-actions"><button class="button button-secondary" id="btn-borrar-seleccionados" type="button">Borrar códigos</button><button class="button button-secondary" id="btn-borrar-todo" type="button">Borrar todo el catálogo</button></div>
+            </section>
+        </div>
+        <div id="modal-usuarios" class="admin-modal oculta" role="dialog" aria-modal="true" aria-labelledby="titulo-usuarios">
+            <section class="admin-modal-panel">
+                <div class="section-heading"><span class="section-icon blue">♙</span><div><span class="eyebrow">ADMINISTRACIÓN</span><h2 id="titulo-usuarios">Gestión de usuarios</h2><p>Consulta y actualiza los clientes registrados. El historial se conserva.</p></div><button class="button button-secondary" id="btn-cerrar-usuarios" type="button">Cerrar</button></div>
+                <div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Identificación</th><th>Facturas</th><th>Total facturado</th><th>Acciones</th></tr></thead><tbody id="tabla-usuarios-admin"><tr><td colspan="5">Cargando...</td></tr></tbody></table></div>
+            </section>
+        </div>
+        <div id="modal-finanzas" class="finance-modal oculta" role="dialog" aria-modal="true" aria-labelledby="titulo-finanzas">
+            <section class="finance-panel">
+                <div class="section-heading"><span class="section-icon green">▤</span><div><span class="eyebrow">SOLO ADMINISTRADOR</span><h2 id="titulo-finanzas">Análisis financiero y comercial</h2><p>Ventas, costos, utilidad, pérdidas e impuestos calculados desde las facturas.</p></div><button class="button button-secondary" id="btn-cerrar-finanzas" type="button">Cerrar</button></div>
+                <div class="finance-filters"><label>Desde<input id="finanzas-desde" type="date"></label><label>Hasta<input id="finanzas-hasta" type="date"></label><button class="button button-primary" id="btn-cargar-finanzas" type="button">Actualizar</button><button class="button button-secondary" id="btn-finanzas-pdf" type="button">Descargar PDF</button><button class="button button-secondary" id="btn-finanzas-excel" type="button">Descargar Excel</button></div>
+                <div id="indicadores-finanzas" class="finance-indicators"></div><div class="finance-charts"><div><h3>Ventas y utilidad por producto</h3><div id="grafica-productos" class="finance-bars"></div></div><div><h3>Ventas por periodo</h3><div id="grafica-periodos" class="finance-bars"></div></div></div><div id="tabla-finanzas" class="table-wrap"></div><p id="mensaje-finanzas" class="message" role="status"></p>
+            </section>
+        </div>
     </section>
 </main>
-<script src="/static/js/app.js?v=20261103-0912"></script>
+<script src="/static/js/app.js?v=20261104-1128"></script>
 </body>
 </html>

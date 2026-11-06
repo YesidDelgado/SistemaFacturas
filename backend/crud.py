@@ -110,6 +110,17 @@ def crear_factura(datos, usuario_id=None):
         id_factura = cursor.lastrowid
         total_calculado = 0.0
         for detalle in datos.detalles:
+            costo_adquisicion = detalle.costo_adquisicion
+            if costo_adquisicion is None and detalle.producto_id:
+                fila_producto = cursor.execute(
+                    "SELECT costo_adquisicion FROM productos WHERE id = ?",
+                    (detalle.producto_id,),
+                ).fetchone()
+                costo_adquisicion = (
+                    float(fila_producto["costo_adquisicion"])
+                    if fila_producto else 0
+                )
+            costo_adquisicion = float(costo_adquisicion or 0)
             subtotal = round(
                 detalle.cantidad * detalle.valor_unitario
                 - detalle.descuento,
@@ -121,12 +132,14 @@ def crear_factura(datos, usuario_id=None):
             cursor.execute("""
                 INSERT INTO factura_detalles (
                     factura_id, producto_id, nombre, descripcion,
-                    cantidad, valor_unitario, descuento, iva_porcentaje, subtotal
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    cantidad, valor_unitario, costo_adquisicion, descuento,
+                    iva_porcentaje, subtotal
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 id_factura, detalle.producto_id, detalle.nombre,
                 detalle.descripcion, detalle.cantidad, detalle.valor_unitario,
-                detalle.descuento, detalle.iva_porcentaje, subtotal,
+                costo_adquisicion, detalle.descuento, detalle.iva_porcentaje,
+                subtotal,
             ))
         if datos.detalles and abs(total_calculado - datos.total) > 0.02:
             raise ValueError(
@@ -172,6 +185,17 @@ def actualizar_factura(id_factura, datos):
             )
             total_calculado = 0.0
             for detalle in datos.detalles:
+                costo_adquisicion = detalle.costo_adquisicion
+                if costo_adquisicion is None and detalle.producto_id:
+                    fila_producto = cursor.execute(
+                        "SELECT costo_adquisicion FROM productos WHERE id = ?",
+                        (detalle.producto_id,),
+                    ).fetchone()
+                    costo_adquisicion = (
+                        float(fila_producto["costo_adquisicion"])
+                        if fila_producto else 0
+                    )
+                costo_adquisicion = float(costo_adquisicion or 0)
                 subtotal = round(
                     detalle.cantidad * detalle.valor_unitario
                     - detalle.descuento,
@@ -183,12 +207,14 @@ def actualizar_factura(id_factura, datos):
                 cursor.execute("""
                     INSERT INTO factura_detalles (
                         factura_id, producto_id, nombre, descripcion,
-                        cantidad, valor_unitario, descuento, iva_porcentaje, subtotal
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        cantidad, valor_unitario, costo_adquisicion, descuento,
+                        iva_porcentaje, subtotal
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     id_factura, detalle.producto_id, detalle.nombre,
                     detalle.descripcion, detalle.cantidad, detalle.valor_unitario,
-                    detalle.descuento, detalle.iva_porcentaje, subtotal,
+                    costo_adquisicion, detalle.descuento, detalle.iva_porcentaje,
+                    subtotal,
                 ))
             if abs(total_calculado - datos.total) > 0.02:
                 raise ValueError(
@@ -234,7 +260,8 @@ def obtener_detalles_factura(id_factura):
     try:
         filas = conexion.execute("""
             SELECT id, producto_id, nombre, descripcion, cantidad,
-                   valor_unitario, descuento, iva_porcentaje, subtotal
+                   valor_unitario, costo_adquisicion, descuento,
+                   iva_porcentaje, subtotal
             FROM factura_detalles
             WHERE factura_id = ?
             ORDER BY id

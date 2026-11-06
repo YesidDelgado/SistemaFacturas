@@ -8,6 +8,7 @@ const API_USUARIOS = "/usuarios";
 const API_IA = "/ia";
 const API_OCR = "/ocr";
 const API_CATALOGO = "/catalogo";
+const API_FINANZAS = "/finanzas";
 
 // Estado temporal de sesión, facturas, catálogo y edición.
 let sesion = null;
@@ -122,6 +123,12 @@ function crearFilaDetalle(scope, detalle = {}) {
     fila.querySelector('[data-field="subtotal"]').value =
         detalle.subtotal == null ? "" : Number(detalle.subtotal).toFixed(2);
     fila.querySelector('[data-field="codigo"]').addEventListener("change", () => completarProducto(fila, scope));
+    fila.querySelector('[data-field="codigo"]').addEventListener("keydown", (evento) => {
+        if (evento.key === "Enter") {
+            evento.preventDefault();
+            completarProducto(fila, scope);
+        }
+    });
     fila.querySelectorAll("input").forEach((input) => {
         if (input.dataset.field !== "codigo") input.addEventListener("input", () => calcularDetalles(scope));
     });
@@ -143,6 +150,11 @@ function agregarFilaDetalle(scope, detalle = {}) {
 function completarProducto(fila, scope) {
     const codigo = fila.querySelector('[data-field="codigo"]').value.trim().toLowerCase();
     const producto = productosCatalogo.find((item) => String(item.codigo).toLowerCase() === codigo);
+    completarFilaConProducto(fila, scope, producto);
+}
+
+// Asigna los datos del catálogo y consolida productos repetidos en la factura.
+function completarFilaConProducto(fila, scope, producto) {
     const nombre = fila.querySelector('[data-field="nombre"]');
     const precio = fila.querySelector('[data-field="precio"]');
     const iva = fila.querySelector('[data-field="iva"]');
@@ -173,6 +185,20 @@ function completarProducto(fila, scope) {
         iva.readOnly = false;
     }
     calcularDetalles(scope);
+}
+
+// Inserta un producto del catálogo en la primera fila disponible de la factura.
+function agregarProductoDesdeCatalogo(codigo, scope = "admin") {
+    const producto = productosCatalogo.find(
+        (item) => String(item.codigo).toLowerCase() === String(codigo).toLowerCase()
+    );
+    if (!producto) return;
+    const filas = [...document.querySelectorAll(`#${nombreCampo(scope)} .detail-row`)];
+    const filaVacia = filas.find((fila) => !fila.querySelector('[data-field="nombre"]').value.trim());
+    const fila = filaVacia || crearFilaDetalle(scope);
+    if (!filaVacia) $(nombreCampo(scope)).appendChild(fila);
+    fila.querySelector('[data-field="codigo"]').value = producto.codigo;
+    completarProducto(fila, scope);
 }
 
 // Calcula subtotales, IVA y total de las filas de productos.
@@ -250,13 +276,81 @@ async function cargarCatalogo() {
         if ($("lista-productos")) {
             $("lista-productos").innerHTML = productosCatalogo.length
                 ? productosCatalogo.map((producto) =>
-                    `<span class="product-chip">${escaparHTML(producto.codigo)} · ${escaparHTML(producto.nombre)} · ${formatoPesos(producto.precio)} + ${producto.iva_porcentaje}% IVA</span>`
+                        `<div class="product-chip"><input type="checkbox" class="producto-seleccionado" value="${escaparHTML(producto.codigo)}"><span>${escaparHTML(producto.codigo)} · ${escaparHTML(producto.nombre)} · Venta ${formatoPesos(producto.precio)} · Costo ${formatoPesos(producto.costo_adquisicion)} + ${producto.iva_porcentaje}% IVA</span><button type="button" class="button button-secondary button-small agregar-producto-factura" data-codigo="${escaparHTML(producto.codigo)}">Agregar a factura</button><button type="button" class="button button-secondary button-small editar-producto" data-codigo="${escaparHTML(producto.codigo)}">Editar</button></div>`
                 ).join("")
                 : "<small>No hay productos cargados.</small>";
         }
+
     } catch (error) {
         if ($("lista-productos")) $("lista-productos").textContent = mensajeError(error);
     }
+}
+
+// Carga los indicadores y el comportamiento comercial del periodo elegido.
+async function cargarFinanzas() {
+    try {
+        if (!$("finanzas-desde").value || !$("finanzas-hasta").value) {
+            $("indicadores-finanzas").innerHTML = "";
+            $("grafica-productos").innerHTML = "";
+            $("grafica-periodos").innerHTML = "";
+            $("tabla-finanzas").innerHTML = "";
+            mostrarMensaje("mensaje-finanzas", "Selecciona un rango de fechas y pulsa Actualizar.", "error");
+            return;
+        }
+        const parametros = new URLSearchParams();
+        if ($("finanzas-desde").value) parametros.set("desde", $("finanzas-desde").value);
+        if ($("finanzas-hasta").value) parametros.set("hasta", $("finanzas-hasta").value);
+        const datos = await solicitar(`${API_FINANZAS}/analisis?${parametros}`);
+        const resumen = datos.resumen;
+        $("indicadores-finanzas").innerHTML = [
+            ["Facturas", resumen.facturas], ["Ventas", formatoPesos(resumen.ventas)],
+            ["IVA", formatoPesos(resumen.iva)], ["Costos", formatoPesos(resumen.costos)],
+            ["Utilidad", formatoPesos(resumen.utilidad)], ["Pérdida", formatoPesos(resumen.perdida)]
+        ].map(([nombre, valor]) => `<div class="finance-indicator"><span>${nombre}</span><strong>${valor}</strong></div>`).join("");
+        $("tabla-finanzas").innerHTML = `<table><thead><tr><th>Producto</th><th>Unidades</th><th>Ventas</th><th>Costos</th><th>Utilidad</th></tr></thead><tbody>${
+            datos.productos.length ? datos.productos.map((producto) => `<tr><td>${escaparHTML(producto.nombre)}</td><td>${producto.unidades}</td><td>${formatoPesos(producto.ventas)}</td><td>${formatoPesos(producto.costos)}</td><td>${formatoPesos(producto.utilidad)}</td></tr>`).join("") : "<tr><td colspan='5'>No hay ventas en el periodo.</td></tr>"
+        }</tbody></table>`;
+        const maxProducto = Math.max(...datos.productos.map((producto) => Number(producto.ventas) || 0), 1);
+        $("grafica-productos").innerHTML = datos.productos.length
+            ? datos.productos.slice(0, 10).map((producto) => `
+                <div class="finance-bar-row"><span>${escaparHTML(producto.nombre)}</span>
+                    <div class="finance-bar-track"><i style="width:${Math.max(3, (Number(producto.ventas) / maxProducto) * 100)}%"></i></div>
+                    <b>${formatoPesos(producto.utilidad)}</b>
+                </div>`).join("")
+            : "<small>No hay productos en el periodo.</small>";
+        const maxPeriodo = Math.max(...datos.mensual.map((periodo) => Number(periodo.ventas) || 0), 1);
+        $("grafica-periodos").innerHTML = datos.mensual.length
+            ? datos.mensual.map((periodo) => `
+                <div class="finance-bar-row"><span>${escaparHTML(periodo.periodo)}</span>
+                    <div class="finance-bar-track"><i class="period-bar" style="width:${Math.max(3, (Number(periodo.ventas) / maxPeriodo) * 100)}%"></i></div>
+                    <b>${formatoPesos(periodo.ventas)}</b>
+                </div>`).join("")
+            : "<small>No hay periodos en el rango.</small>";
+        mostrarMensaje("mensaje-finanzas", "Análisis actualizado.", "exito");
+    } catch (error) { mostrarMensaje("mensaje-finanzas", mensajeError(error), "error"); }
+}
+
+// Abre una descarga protegida por la sesión administrativa actual.
+function descargarInformeFinanciero(extension) {
+    if (!$("finanzas-desde").value || !$("finanzas-hasta").value) {
+        mostrarMensaje("mensaje-finanzas", "Selecciona Desde y Hasta antes de descargar.", "error");
+        return;
+    }
+    const parametros = new URLSearchParams();
+    if ($("finanzas-desde").value) parametros.set("desde", $("finanzas-desde").value);
+    if ($("finanzas-hasta").value) parametros.set("hasta", $("finanzas-hasta").value);
+    window.open(`${API_FINANZAS}/reporte.${extension}?${parametros}`, "_blank", "noopener");
+}
+
+// Solicita y ejecuta el borrado controlado de productos del catálogo.
+async function borrarCatalogo(modo, codigos, confirmacion) {
+    try {
+        const respuesta = await solicitar(`${API_CATALOGO}/borrar`, {
+            method: "POST", body: JSON.stringify({ modo, codigos, confirmacion })
+        });
+        mostrarMensaje("mensaje-catalogo", `${respuesta.mensaje} Eliminados: ${respuesta.eliminados}. Protegidos: ${respuesta.protegidos}.`, "exito");
+        await cargarCatalogo();
+    } catch (error) { mostrarMensaje("mensaje-catalogo", mensajeError(error), "error"); }
 }
 
 // Consulta el consecutivo de factura y lo coloca en el formulario.
@@ -576,6 +670,58 @@ function conectarEventos() {
     $("buscar-admin").addEventListener("input", dibujarTablaFacturas);
     $("btn-salir-cliente").addEventListener("click", cerrarSesion);
     $("btn-salir-admin").addEventListener("click", cerrarSesion);
+    $("btn-abrir-catalogo").addEventListener("click", async () => {
+        $("modal-catalogo").classList.remove("oculta");
+        await cargarCatalogo();
+    });
+    $("btn-cerrar-catalogo").addEventListener("click", () => $("modal-catalogo").classList.add("oculta"));
+    $("btn-abrir-usuarios").addEventListener("click", async () => {
+        $("modal-usuarios").classList.remove("oculta");
+        await cargarUsuariosAdmin();
+    });
+    $("btn-cerrar-usuarios").addEventListener("click", () => $("modal-usuarios").classList.add("oculta"));
+    $("btn-abrir-finanzas").addEventListener("click", async () => {
+        $("modal-finanzas").classList.remove("oculta"); await cargarFinanzas();
+    });
+    $("btn-cerrar-finanzas").addEventListener("click", () => $("modal-finanzas").classList.add("oculta"));
+    $("btn-cargar-finanzas").addEventListener("click", cargarFinanzas);
+    $("btn-finanzas-pdf").addEventListener("click", () => descargarInformeFinanciero("pdf"));
+    $("btn-finanzas-excel").addEventListener("click", () => descargarInformeFinanciero("xlsx"));
+    $("btn-borrar-todo").addEventListener("click", () => {
+        if (window.confirm("Se conservarán los productos usados en facturas como inactivos. ¿Continuar?")) {
+            borrarCatalogo("todos", [], "BORRAR TODO");
+        }
+    });
+    $("btn-borrar-seleccionados").addEventListener("click", () => {
+        const codigos = [...document.querySelectorAll(".producto-seleccionado:checked")]
+            .map((control) => control.value);
+        if (!codigos.length) {
+            mostrarMensaje("mensaje-catalogo", "Selecciona al menos un producto.", "error");
+            return;
+        }
+        if (window.confirm(`¿Borrar ${codigos.length} producto(s) seleccionado(s)?`)) {
+            borrarCatalogo("seleccionados", codigos, "BORRAR SELECCIONADOS");
+        }
+    });
+    $("lista-productos").addEventListener("click", (evento) => {
+        const boton = evento.target.closest(".editar-producto");
+        const agregar = evento.target.closest(".agregar-producto-factura");
+        if (agregar) {
+            agregarProductoDesdeCatalogo(agregar.dataset.codigo, "admin");
+            $("admin-facturas").scrollIntoView({ behavior: "smooth" });
+            return;
+        }
+        if (!boton) return;
+        const producto = productosCatalogo.find((item) => String(item.codigo) === boton.dataset.codigo);
+        if (!producto) return;
+        $("producto-codigo").value = producto.codigo;
+        $("producto-nombre").value = producto.nombre;
+        $("producto-descripcion").value = producto.descripcion || "";
+        $("producto-precio").value = producto.precio;
+        $("producto-costo").value = producto.costo_adquisicion || 0;
+        $("producto-iva").value = producto.iva_porcentaje || 0;
+        $("producto-nombre").focus();
+    });
     $("btn-imprimir-cliente").addEventListener("click", () => {
         if (ultimaFacturaRegistrada?.id) window.open(`${API_FACTURAS}/${ultimaFacturaRegistrada.id}/pdf`, "_blank", "noopener");
     });
@@ -606,6 +752,7 @@ function conectarEventos() {
             await solicitar(`${API_CATALOGO}/productos`, { method: "POST", body: JSON.stringify({
                 codigo: $("producto-codigo").value.trim(), nombre: $("producto-nombre").value.trim(),
                 descripcion: $("producto-descripcion").value.trim(), precio: Number($("producto-precio").value),
+                costo_adquisicion: Number($("producto-costo").value),
                 iva_porcentaje: Number($("producto-iva").value || 0)
             })});
             evento.currentTarget.reset();
@@ -621,8 +768,15 @@ function conectarEventos() {
         try {
             const respuesta = await solicitar(`${API_CATALOGO}/importar`, { method: "POST", body: formulario });
             mostrarMensaje("mensaje-catalogo", `${respuesta.mensaje} Filas: ${respuesta.cantidad}.`, "exito");
-            evento.currentTarget.reset(); await cargarCatalogo();
-        } catch (error) { mostrarMensaje("mensaje-catalogo", mensajeError(error), "error"); }
+            evento.currentTarget.reset();
+            try {
+                await cargarCatalogo();
+            } catch (error) {
+                mostrarMensaje("mensaje-catalogo", `Importación completada, pero no se pudo actualizar la lista: ${mensajeError(error)}`, "error");
+            }
+        } catch (error) {
+            mostrarMensaje("mensaje-catalogo", mensajeError(error), "error");
+        }
     });
     conectarNavegacion();
 }
