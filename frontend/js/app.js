@@ -17,6 +17,7 @@ let productosCatalogo = [];
 let usuariosAdmin = [];
 let idEditando = null;
 let ultimaFacturaRegistrada = null;
+let documentosProcesados = [];
 
 // Busca un elemento del documento por su identificador.
 const $ = (id) => document.getElementById(id);
@@ -87,6 +88,83 @@ function escaparHTML(valor) {
     })[caracter]);
 }
 
+// Convierte una respuesta OCR/IA a una estructura editable por el módulo masivo.
+function normalizarDocumentoProcesado(respuesta, archivo) {
+    const datos = respuesta.datos || respuesta;
+    const campos = datos.datos_estructurados || datos;
+    return {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        archivo: archivo.name,
+        estado: "pendiente",
+        error: "",
+        proveedor: campos.razon_social || campos.proveedor || "",
+        nit: campos.nit_proveedor || campos.nit || "",
+        cliente: campos.cliente || "",
+        numero: campos.numero_factura || "",
+        fecha: campos.fecha || campos.fecha_emision || fechaHoy(),
+        total: campos.total == null ? "" : Number(campos.total),
+        productos: Array.isArray(campos.productos) ? campos.productos.map((producto) => ({
+            nombre: producto.nombre || producto.descripcion || "",
+            cantidad: Number(producto.cantidad) || 1,
+            precio: Number(producto.valor_unitario) || 0,
+            iva: Number(producto.iva_porcentaje) || 0,
+            subtotal: Number(producto.subtotal) || 0
+        })) : []
+    };
+}
+
+// Construye el formulario editable de una factura analizada.
+function dibujarDocumentoProcesado(documento, indice) {
+    const productos = documento.productos.length ? documento.productos.map((producto, productoIndice) => `
+        <tr>
+            <td><input data-doc="${indice}" data-producto="${productoIndice}" data-campo="nombre" value="${escaparHTML(producto.nombre)}"></td>
+            <td><input type="number" min="0.01" step="0.01" data-doc="${indice}" data-producto="${productoIndice}" data-campo="cantidad" value="${producto.cantidad}"></td>
+            <td><input type="number" min="0" step="0.01" data-doc="${indice}" data-producto="${productoIndice}" data-campo="precio" value="${producto.precio}"></td>
+            <td><input type="number" min="0" max="100" step="0.01" data-doc="${indice}" data-producto="${productoIndice}" data-campo="iva" value="${producto.iva}"></td>
+        </tr>`).join("") : "<tr><td colspan='4'>No se detectaron productos; agrégalos antes de registrar.</td></tr>";
+    return `<article class="processing-card ${documento.estado === "guardada" ? "processing-saved" : ""}" data-documento="${documento.id}">
+        <div class="processing-card-header"><div><strong>${escaparHTML(documento.archivo)}</strong><small>${documento.estado === "guardada" ? "Registrada" : "Pendiente de revisión"}</small></div><label><input type="checkbox" class="documento-aprobado" data-doc="${indice}" ${documento.estado === "guardada" ? "" : "checked"} ${documento.estado === "guardada" ? "disabled" : ""}> Validar</label></div>
+        ${documento.error ? `<p class="message error">${escaparHTML(documento.error)}</p>` : ""}
+        <div class="processing-fields">
+            <label>Proveedor<input data-doc="${indice}" data-campo="proveedor" value="${escaparHTML(documento.proveedor)}"></label>
+            <label>NIT<input data-doc="${indice}" data-campo="nit" value="${escaparHTML(documento.nit)}"></label>
+            <label>Número detectado<input data-doc="${indice}" data-campo="numero" value="${escaparHTML(documento.numero)}"></label>
+            <label>Cliente<input data-doc="${indice}" data-campo="cliente" value="${escaparHTML(documento.cliente)}"></label>
+            <label>Fecha<input type="date" data-doc="${indice}" data-campo="fecha" value="${escaparHTML(documento.fecha)}"></label>
+            <label>Total<input type="number" min="0" step="0.01" data-doc="${indice}" data-campo="total" value="${documento.total}"></label>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th>Producto</th><th>Cantidad</th><th>Precio unitario</th><th>IVA %</th></tr></thead><tbody>${productos}</tbody></table></div>
+        <p class="message processing-status" data-status="${indice}">${documento.error ? "Corrige los datos antes de registrar." : "Revisa los datos extraídos y valida esta factura."}</p>
+        <button type="button" class="button button-secondary button-small registrar-documento" data-doc="${indice}" ${documento.estado === "guardada" ? "disabled" : ""}>Registrar esta factura</button>
+    </article>`;
+}
+
+// Redibuja los resultados y conserva la edición actual de cada documento.
+function renderizarDocumentosProcesados() {
+    const contenedor = $("resultados-procesamiento");
+    contenedor.innerHTML = documentosProcesados.length
+        ? documentosProcesados.map((documento, indice) => dibujarDocumentoProcesado(documento, indice)).join("")
+        : "<p class='empty-state'>Selecciona un documento para comenzar.</p>";
+    $("btn-registrar-procesados").disabled = !documentosProcesados.some((documento) => documento.estado === "pendiente" && !documento.error);
+    const validos = documentosProcesados.filter((documento) => !documento.error && documento.productos.length && documento.total > 0).length;
+    $("resumen-procesamiento").textContent = documentosProcesados.length
+        ? `${documentosProcesados.length} documento(s): ${validos} listo(s) para validar`
+        : "Sin documentos procesados";
+    $("btn-validar-todos").disabled = !documentosProcesados.some((documento) => documento.estado === "pendiente" && !documento.error);
+}
+
+// Actualiza un campo editable del documento analizado.
+function actualizarDocumentoDesdeControl(control) {
+    const documento = documentosProcesados[Number(control.dataset.doc)];
+    if (!documento || !control.dataset.campo) return;
+    const campo = control.dataset.campo;
+    documento[campo] = ["total"].includes(campo) ? Number(control.value) || 0 : control.value;
+    if (control.dataset.producto !== undefined) {
+        const producto = documento.productos[Number(control.dataset.producto)];
+        producto[campo] = ["cantidad", "precio", "iva"].includes(campo) ? Number(control.value) || 0 : control.value;
+    }
+}
+
 // Devuelve el contenedor de detalles según el tipo de usuario.
 function nombreCampo(scope) {
     return scope === "admin" ? "detalles-admin" : "detalles-cliente";
@@ -127,6 +205,9 @@ function crearFilaDetalle(scope, detalle = {}) {
         if (evento.key === "Enter") {
             evento.preventDefault();
             completarProducto(fila, scope);
+            if (fila.parentElement && fila.querySelector('[data-field="nombre"]').value.trim()) {
+                agregarFilaDetalle(scope);
+            }
         }
     });
     fila.querySelectorAll("input").forEach((input) => {
@@ -142,8 +223,12 @@ function crearFilaDetalle(scope, detalle = {}) {
 
 // Agrega una nueva fila de producto y recalcula los totales.
 function agregarFilaDetalle(scope, detalle = {}) {
-    $(nombreCampo(scope)).appendChild(crearFilaDetalle(scope, detalle));
+    const fila = crearFilaDetalle(scope, detalle);
+    $(nombreCampo(scope)).appendChild(fila);
     calcularDetalles(scope);
+    if (!detalle.nombre && !detalle.codigo) {
+        fila.querySelector('[data-field="codigo"]').focus();
+    }
 }
 
 // Completa un producto del catálogo y consolida códigos repetidos.
@@ -199,6 +284,7 @@ function agregarProductoDesdeCatalogo(codigo, scope = "admin") {
     if (!filaVacia) $(nombreCampo(scope)).appendChild(fila);
     fila.querySelector('[data-field="codigo"]').value = producto.codigo;
     completarProducto(fila, scope);
+    agregarFilaDetalle(scope);
 }
 
 // Calcula subtotales, IVA y total de las filas de productos.
@@ -451,6 +537,7 @@ async function analizarOCRLocal(scope) {
         mostrarMensaje(`mensaje-ocr-${scope}`, "Selecciona un documento.", "error");
         return;
     }
+
     const formulario = new FormData();
     formulario.append("archivo", archivo);
     const boton = $(`btn-ocr-local-${scope}`);
@@ -467,6 +554,125 @@ async function analizarOCRLocal(scope) {
     } finally {
         boton.disabled = false;
     }
+}
+
+// Analiza los documentos seleccionados con OCR local o IA sin registrarlos automáticamente.
+async function procesarLoteDocumentos(motor) {
+    const selector = $("archivos-procesamiento");
+    const archivos = [...selector.files];
+    if (!archivos.length) {
+        mostrarMensaje("mensaje-procesamiento", "Selecciona al menos un documento.", "error");
+        return;
+    }
+    if ($("modo-procesamiento").value === "individual" && archivos.length > 1) {
+        mostrarMensaje("mensaje-procesamiento", "El modo individual permite seleccionar un solo documento.", "error");
+        return;
+    }
+    const endpoint = motor === "ia" ? `${API_IA}/analizar-factura` : `${API_OCR}/extraer`;
+    const boton = motor === "ia" ? $("btn-procesar-ia") : $("btn-procesar-ocr");
+    boton.disabled = true;
+    documentosProcesados = [];
+    renderizarDocumentosProcesados();
+    mostrarMensaje("mensaje-procesamiento", `Analizando ${archivos.length} documento(s)...`);
+    for (const archivo of archivos) {
+        const formulario = new FormData();
+        formulario.append("archivo", archivo);
+        try {
+            const respuesta = await solicitar(endpoint, { method: "POST", body: formulario });
+            documentosProcesados.push(normalizarDocumentoProcesado(respuesta, archivo));
+        } catch (error) {
+            documentosProcesados.push({
+                id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                archivo: archivo.name,
+                estado: "error",
+                error: mensajeError(error),
+                productos: [],
+                proveedor: "",
+                nit: "",
+                cliente: "",
+                numero: "",
+                fecha: fechaHoy(),
+                total: ""
+            });
+        }
+        renderizarDocumentosProcesados();
+    }
+    renderizarDocumentosProcesados();
+    const exitosos = documentosProcesados.filter((documento) => !documento.error).length;
+    mostrarMensaje("mensaje-procesamiento", `Análisis terminado: ${exitosos} de ${archivos.length} documento(s). Revisa y aprueba los válidos.`, "exito");
+    boton.disabled = false;
+}
+
+// Convierte un documento revisado al formato del endpoint de facturas.
+function datosFacturaProcesadaGlobal(documento) {
+    return {
+        cliente: documento.cliente || "Cliente pendiente de identificar",
+        proveedor: documento.proveedor || null,
+        nit_proveedor: documento.nit || null,
+        fecha: documento.fecha || fechaHoy(),
+        total: Number(documento.total) || 0,
+        detalles: documento.productos
+            .filter((producto) => producto.nombre && Number(producto.cantidad) > 0)
+            .map((producto) => {
+                const catalogo = productosCatalogo.find(
+                    (item) => String(item.nombre).trim().toLowerCase() ===
+                        String(producto.nombre).trim().toLowerCase()
+                );
+                return {
+                    producto_id: catalogo?.id || null,
+                    nombre: producto.nombre,
+                    cantidad: Number(producto.cantidad),
+                    valor_unitario: Number(producto.precio) || 0,
+                    costo_adquisicion: catalogo?.costo_adquisicion ?? null,
+                    iva_porcentaje: Number(producto.iva) || 0,
+                    descuento: 0
+                };
+            })
+    };
+}
+
+// Registra una factura revisada desde el módulo individual o masivo.
+async function registrarDocumentoProcesado(indice) {
+    const documento = documentosProcesados[indice];
+    if (!documento || documento.estado === "guardada") return;
+    document.querySelectorAll(`[data-doc="${indice}"][data-campo]`).forEach(actualizarDocumentoDesdeControl);
+    const datos = datosFacturaProcesadaGlobal(documento);
+    if (!datos.detalles.length || !datos.fecha || datos.total <= 0) {
+        mostrarMensajeDocumentoGlobal(indice, "Completa fecha, total y al menos un producto válido.", "error");
+        return;
+    }
+    try {
+        await solicitar(API_FACTURAS, { method: "POST", body: JSON.stringify(datos) });
+        documento.estado = "guardada";
+        documento.error = "";
+        mostrarMensaje("mensaje-procesamiento", "Factura registrada correctamente.", "exito");
+        renderizarDocumentosProcesados();
+        await cargarPanelAdministrador();
+    } catch (error) {
+        mostrarMensajeDocumentoGlobal(indice, mensajeError(error), "error");
+    }
+}
+
+// Muestra el resultado de registro de una tarjeta procesada.
+function mostrarMensajeDocumentoGlobal(indice, texto, tipo) {
+    const mensaje = document.querySelector(`[data-status="${indice}"]`);
+    if (!mensaje) return;
+    mensaje.textContent = texto;
+    mensaje.className = `message processing-status ${tipo}`;
+}
+
+// Registra las facturas aprobadas después de validar sus datos.
+async function registrarLoteDocumentos() {
+    const aprobados = [...document.querySelectorAll(".documento-aprobado:checked")]
+        .map((control) => Number(control.dataset.doc));
+    if (!aprobados.length) {
+        mostrarMensaje("mensaje-procesamiento", "Aprueba al menos una factura.", "error");
+        return;
+    }
+    const boton = $("btn-registrar-procesados");
+    boton.disabled = true;
+    for (const indice of aprobados) await registrarDocumentoProcesado(indice);
+    boton.disabled = false;
 }
 
 // Recoge los datos generales y detalles del formulario de factura.
@@ -559,12 +765,74 @@ async function cargarUsuariosAdmin() {
                 <td>${escaparHTML(usuario.identificacion)}</td>
                 <td>${usuario.cantidad_facturas}</td>
                 <td>${formatoPesos(usuario.total_facturado)}</td>
-                <td><button class="button button-secondary" data-usuario-accion="editar" data-id="${usuario.id}">Editar</button></td></tr>
+                <td><button class="button button-secondary" data-usuario-accion="facturas" data-id="${usuario.id}">Ver facturas</button>
+                <button class="button button-secondary" data-usuario-accion="editar" data-id="${usuario.id}">Editar</button></td></tr>
             `).join("")
             : '<tr><td colspan="5">No hay clientes registrados.</td></tr>';
     } catch (error) {
         $("tabla-usuarios-admin").innerHTML =
             `<tr><td colspan="5">${escaparHTML(mensajeError(error))}</td></tr>`;
+    }
+}
+
+// Carga y muestra en el mismo panel las facturas del cliente seleccionado.
+async function mostrarFacturasUsuario(id) {
+    const panel = $("facturas-usuario-admin");
+    try {
+        const usuario = usuariosAdmin.find((item) => Number(item.id) === id);
+        const facturas = await solicitar(`${API_USUARIOS}/${id}/facturas`);
+        panel.classList.remove("oculta");
+        panel.dataset.usuarioId = id;
+        panel.innerHTML = `<div class="section-heading"><div><span class="eyebrow">HISTORIAL DEL CLIENTE</span><h3>${escaparHTML(usuario?.nombre || "Usuario")}</h3></div><button class="button button-secondary button-small" type="button" id="btn-cerrar-facturas-usuario">Cerrar historial</button></div>` +
+            (facturas.length ? `<div class="table-wrap"><table><thead><tr><th>Factura</th><th>Fecha</th><th>Total</th><th>Acciones</th></tr></thead><tbody>${facturas.map((factura) => `
+                <tr><td>${escaparHTML(factura.factura)}</td><td>${escaparHTML(factura.fecha)}</td><td>${formatoPesos(factura.total)}</td><td>
+                <button class="button button-secondary button-small" data-factura-usuario="ver" data-id="${factura.id}">Ver PDF</button>
+                <button class="button button-secondary button-small" data-factura-usuario="descargar" data-id="${factura.id}">Descargar</button>
+                <button class="button button-secondary button-small" data-factura-usuario="detalles" data-id="${factura.id}">Detalle</button></td></tr>
+            `).join("")}</tbody></table></div>` : "<p class='empty-state'>Este usuario no tiene facturas registradas.</p>");
+    } catch (error) {
+        panel.classList.remove("oculta");
+        panel.innerHTML = `<p class="message error">${escaparHTML(mensajeError(error))}</p>`;
+    }
+}
+
+// Muestra la información completa de una factura y sus productos en el historial.
+async function mostrarDetallesFacturaUsuario(id) {
+    const panel = $("facturas-usuario-admin");
+    try {
+        const facturaUsuarioId = Number(panel.dataset.usuarioId);
+        const [facturas, detalles] = await Promise.all([
+            solicitar(`${API_USUARIOS}/${facturaUsuarioId}/facturas`),
+            solicitar(`${API_FACTURAS}/${id}/detalles`)
+        ]);
+        const factura = facturas.find((item) => Number(item.id) === id);
+        if (!factura) throw new Error("No se encontró la factura seleccionada.");
+        const filas = detalles.length
+            ? detalles.map((detalle) => `<tr><td>${escaparHTML(detalle.nombre)}</td><td>${detalle.cantidad}</td><td>${formatoPesos(detalle.valor_unitario)}</td><td>${detalle.iva_porcentaje || 0}%</td><td>${formatoPesos(detalle.subtotal)}</td></tr>`).join("")
+            : "<tr><td colspan='5'>La factura no tiene productos.</td></tr>";
+        const subtotal = detalles.reduce((sum, detalle) => sum + Number(detalle.subtotal || 0), 0);
+        const iva = detalles.reduce((sum, detalle) => sum + Number(detalle.subtotal || 0) * Number(detalle.iva_porcentaje || 0) / 100, 0);
+        panel.innerHTML = `
+            <div class="section-heading">
+                <div><span class="eyebrow">FACTURA ${escaparHTML(factura.factura)}</span><h3>Consulta completa</h3></div>
+                <div class="button-row">
+                    <button class="button button-secondary button-small" type="button" data-factura-usuario="ver" data-id="${factura.id}">Ver PDF</button>
+                    <button class="button button-secondary button-small" type="button" data-factura-usuario="descargar" data-id="${factura.id}">Descargar PDF</button>
+                    <button class="button button-secondary button-small" type="button" id="btn-volver-facturas-usuario">Volver</button>
+                </div>
+            </div>
+            <div class="invoice-summary-grid">
+                <div><span>Cliente</span><strong>${escaparHTML(factura.cliente)}</strong></div>
+                <div><span>NIT / identificación cliente</span><strong>${escaparHTML(factura.identificacion || "No informado")}</strong></div>
+                <div><span>Proveedor</span><strong>${escaparHTML(factura.proveedor || "No informado")}</strong></div>
+                <div><span>NIT proveedor</span><strong>${escaparHTML(factura.nit_proveedor || "No informado")}</strong></div>
+                <div><span>Fecha</span><strong>${escaparHTML(factura.fecha)}</strong></div>
+                <div><span>Total factura</span><strong>${formatoPesos(factura.total)}</strong></div>
+            </div>
+            <div class="table-wrap"><h4>Productos y valores</h4><table><thead><tr><th>Producto</th><th>Cantidad</th><th>Precio unitario</th><th>IVA</th><th>Subtotal</th></tr></thead><tbody>${filas}</tbody>
+            <tfoot><tr><th colspan="4">Subtotal productos</th><th>${formatoPesos(subtotal)}</th></tr><tr><th colspan="4">IVA calculado</th><th>${formatoPesos(iva)}</th></tr><tr><th colspan="4">Total registrado</th><th>${formatoPesos(factura.total)}</th></tr></tfoot></table></div>`;
+    } catch (error) {
+        panel.innerHTML += `<p class="message error">${escaparHTML(mensajeError(error))}</p>`;
     }
 }
 
@@ -598,27 +866,157 @@ function dibujarTablaFacturas() {
         <tr><td>${escaparHTML(factura.factura)}</td><td>${escaparHTML(factura.cliente)}</td>
         <td>${escaparHTML(factura.fecha)}</td><td>${formatoPesos(factura.total)}</td><td>
         <button class="button button-secondary" data-accion="pdf" data-id="${factura.id}">PDF</button>
+        <button class="button button-secondary" data-accion="detalle" data-id="${factura.id}">Detalle</button>
         <button class="button button-secondary" data-accion="editar" data-id="${factura.id}">Editar</button>
         <button class="button" data-accion="eliminar" data-id="${factura.id}">Eliminar</button></td></tr>
     `).join("") : '<tr><td colspan="5">No hay facturas para mostrar.</td></tr>';
 }
 
-// Carga una factura existente junto con sus productos para editarla.
+// Lleva el contenido recién abierto a la zona visible del modal sin mover la página principal.
+function desplazarPanelFactura(id) {
+    const contenido = $(id);
+    if (!contenido) return;
+    const panel = contenido.closest(".admin-modal-panel");
+    if (!panel) return;
+    requestAnimationFrame(() => {
+        panel.scrollTo({
+            top: Math.max(0, contenido.offsetTop - 18),
+            behavior: "smooth"
+        });
+    });
+}
+
+// Muestra la información completa de una factura en el panel administrativo general.
+async function mostrarDetalleFacturaAdmin(id) {
+    const panel = $("detalle-factura-modal");
+    const factura = facturasAdmin.find((item) => Number(item.id) === id);
+    if (!factura) return;
+    try {
+        const detalles = await solicitar(`${API_FACTURAS}/${id}/detalles`);
+        const filas = detalles.length
+            ? detalles.map((detalle) => `<tr><td>${escaparHTML(detalle.nombre)}</td><td>${detalle.cantidad}</td><td>${formatoPesos(detalle.valor_unitario)}</td><td>${detalle.iva_porcentaje || 0}%</td><td>${formatoPesos(detalle.subtotal)}</td></tr>`).join("")
+            : "<tr><td colspan='5'>La factura no tiene productos.</td></tr>";
+        const subtotal = detalles.reduce((sum, detalle) => sum + Number(detalle.subtotal || 0), 0);
+        const iva = detalles.reduce((sum, detalle) => sum + Number(detalle.subtotal || 0) * Number(detalle.iva_porcentaje || 0) / 100, 0);
+        panel.classList.remove("oculta");
+        panel.innerHTML = `
+            <div class="section-heading">
+                <div><span class="eyebrow">FACTURA ${escaparHTML(factura.factura)}</span><h3>Consulta completa</h3></div>
+                <div class="button-row">
+                    <button class="button button-secondary button-small" type="button" data-factura-admin="ver" data-id="${factura.id}">Ver PDF</button>
+                    <button class="button button-secondary button-small" type="button" data-factura-admin="descargar" data-id="${factura.id}">Descargar PDF</button>
+                    <button class="button button-secondary button-small" type="button" data-factura-admin="cerrar">Cerrar</button>
+                </div>
+            </div>
+            <div class="invoice-summary-grid">
+                <div><span>Cliente</span><strong>${escaparHTML(factura.cliente)}</strong></div>
+                <div><span>NIT / identificación cliente</span><strong>${escaparHTML(factura.identificacion || "No informado")}</strong></div>
+                <div><span>Proveedor</span><strong>${escaparHTML(factura.proveedor || "No informado")}</strong></div>
+                <div><span>NIT proveedor</span><strong>${escaparHTML(factura.nit_proveedor || "No informado")}</strong></div>
+                <div><span>Fecha</span><strong>${escaparHTML(factura.fecha)}</strong></div>
+                <div><span>Total factura</span><strong>${formatoPesos(factura.total)}</strong></div>
+            </div>
+            <div class="table-wrap"><h4>Productos y valores</h4><table><thead><tr><th>Producto</th><th>Cantidad</th><th>Precio unitario</th><th>IVA</th><th>Subtotal</th></tr></thead><tbody>${filas}</tbody>
+            <tfoot><tr><th colspan="4">Subtotal productos</th><th>${formatoPesos(subtotal)}</th></tr><tr><th colspan="4">IVA calculado</th><th>${formatoPesos(iva)}</th></tr><tr><th colspan="4">Total registrado</th><th>${formatoPesos(factura.total)}</th></tr></tfoot></table></div>`;
+        desplazarPanelFactura("detalle-factura-modal");
+    } catch (error) {
+        panel.classList.remove("oculta");
+        panel.innerHTML = `<p class="message error">${escaparHTML(mensajeError(error))}</p>`;
+    }
+}
+
+// Carga una factura existente dentro del panel de facturas registradas.
 async function editarFactura(id) {
     const factura = facturasAdmin.find((item) => Number(item.id) === id);
     if (!factura) return;
-    idEditando = id;
-    $("codigo-admin").value = factura.factura;
-    $("nombre-factura-admin").value = factura.cliente;
-    $("proveedor-factura-admin").value = factura.proveedor || "";
-    $("nit-factura-admin").value = factura.nit_proveedor || "";
-    $("fecha-admin").value = factura.fecha;
-    $("titulo-formulario-admin").textContent = "Modificar factura";
-    $("btn-guardar-admin").textContent = "Guardar cambios";
-    $("btn-cancelar-edicion").classList.remove("oculta");
     const detalles = await solicitar(`${API_FACTURAS}/${id}/detalles`);
-    cargarDetalles("admin", detalles);
-    $("admin-facturas").scrollIntoView({ behavior: "smooth" });
+    const panel = $("edicion-factura-modal");
+    panel.classList.remove("oculta");
+    panel.innerHTML = `
+        <div class="section-heading"><div><span class="eyebrow">EDICIÓN</span><h3>Modificar ${escaparHTML(factura.factura)}</h3></div><button class="button button-secondary button-small" type="button" id="btn-cerrar-edicion-modal">Cancelar</button></div>
+        <form id="form-edicion-factura-modal" class="invoice-form">
+            <label>Cliente<input id="editar-cliente-modal" value="${escaparHTML(factura.cliente)}" required></label>
+            <label>Proveedor<input id="editar-proveedor-modal" value="${escaparHTML(factura.proveedor || "")}"></label>
+            <label>NIT proveedor<input id="editar-nit-modal" value="${escaparHTML(factura.nit_proveedor || "")}"></label>
+            <label>Fecha<input id="editar-fecha-modal" type="date" value="${escaparHTML(factura.fecha)}" required></label>
+            <div class="detail-block full"><div class="detail-title"><strong>Productos</strong><button class="button button-secondary button-small" type="button" id="btn-agregar-detalle-modal">+ Producto</button></div><div id="detalles-editar-modal" class="detail-list"></div></div>
+            <div class="totals full" id="totales-editar-modal"></div>
+            <label>Total de factura<input id="editar-total-modal" type="number" min="0" step="0.01" value="${Number(factura.total) || 0}" required></label>
+            <div class="button-row full"><button class="button button-primary" type="submit">Guardar cambios</button></div>
+        </form>
+        <p id="mensaje-edicion-modal" class="message" role="status"></p>`;
+        desplazarPanelFactura("edicion-factura-modal");
+    cargarDetallesModalEdicion(detalles);
+    $("btn-cerrar-edicion-modal").addEventListener("click", () => panel.classList.add("oculta"));
+    $("btn-agregar-detalle-modal").addEventListener("click", () => agregarFilaDetalleModal());
+    $("form-edicion-factura-modal").addEventListener("submit", (evento) => guardarEdicionModal(evento, id));
+}
+
+// Carga los productos existentes en el formulario de edición del modal.
+function cargarDetallesModalEdicion(detalles) {
+    $("detalles-editar-modal").innerHTML = "";
+    (detalles.length ? detalles : [{}]).forEach((detalle) => agregarFilaDetalleModal(detalle));
+    calcularDetallesModal();
+}
+
+// Agrega una fila editable al formulario del modal de facturas.
+function agregarFilaDetalleModal(detalle = {}) {
+    const fila = document.createElement("div");
+    fila.className = "detail-row";
+    fila.innerHTML = `<input data-field="nombre" placeholder="Producto"><input data-field="cantidad" type="number" min="0.01" step="0.01" placeholder="Cantidad"><input data-field="precio" type="number" min="0" step="0.01" placeholder="Precio"><input data-field="iva" type="number" min="0" max="100" step="0.01" placeholder="IVA %"><input data-field="subtotal" readonly placeholder="Subtotal"><button type="button" class="remove-detail" aria-label="Quitar producto">×</button>`;
+    fila.querySelector('[data-field="nombre"]').value = detalle.nombre || "";
+    fila.querySelector('[data-field="cantidad"]').value = detalle.cantidad ?? 1;
+    fila.querySelector('[data-field="precio"]').value = detalle.valor_unitario ?? "";
+    fila.querySelector('[data-field="iva"]').value = detalle.iva_porcentaje ?? 0;
+    fila.querySelectorAll("input").forEach((input) => input.addEventListener("input", calcularDetallesModal));
+    fila.querySelector(".remove-detail").addEventListener("click", () => {
+        if ($("detalles-editar-modal").children.length > 1) fila.remove();
+        calcularDetallesModal();
+    });
+    $("detalles-editar-modal").appendChild(fila);
+}
+
+// Recalcula subtotales e IVA de las filas editadas en el modal.
+function calcularDetallesModal() {
+    let subtotal = 0;
+    let ivaTotal = 0;
+    document.querySelectorAll("#detalles-editar-modal .detail-row").forEach((fila) => {
+        const linea = (Number(fila.querySelector('[data-field="cantidad"]').value) || 0) * (Number(fila.querySelector('[data-field="precio"]').value) || 0);
+        const iva = Number(fila.querySelector('[data-field="iva"]').value) || 0;
+        subtotal += linea;
+        ivaTotal += linea * iva / 100;
+        fila.querySelector('[data-field="subtotal"]').value = linea.toFixed(2);
+    });
+    $("editar-total-modal").value = (subtotal + ivaTotal).toFixed(2);
+    $("totales-editar-modal").innerHTML = `<span>Subtotal: <strong>${formatoPesos(subtotal)}</strong></span><span>IVA: <strong>${formatoPesos(ivaTotal)}</strong></span><span>Total: <strong>${formatoPesos(subtotal + ivaTotal)}</strong></span>`;
+}
+
+// Envía al backend los cambios realizados en la factura del modal.
+async function guardarEdicionModal(evento, id) {
+    evento.preventDefault();
+    const detalles = [...document.querySelectorAll("#detalles-editar-modal .detail-row")].map((fila) => ({
+        nombre: fila.querySelector('[data-field="nombre"]').value.trim(),
+        cantidad: Number(fila.querySelector('[data-field="cantidad"]').value),
+        valor_unitario: Number(fila.querySelector('[data-field="precio"]').value),
+        iva_porcentaje: Number(fila.querySelector('[data-field="iva"]').value) || 0,
+        descuento: 0
+    })).filter((detalle) => detalle.nombre && detalle.cantidad > 0);
+    try {
+        await solicitar(`${API_FACTURAS}/${id}`, { method: "PUT", body: JSON.stringify({
+            cliente: $("editar-cliente-modal").value.trim(),
+            proveedor: $("editar-proveedor-modal").value.trim() || null,
+            nit_proveedor: $("editar-nit-modal").value.trim() || null,
+            fecha: $("editar-fecha-modal").value,
+            total: Number($("editar-total-modal").value) || 0,
+            detalles
+        })});
+        mostrarMensaje("mensaje-edicion-modal", "Factura actualizada correctamente.", "exito");
+        await cargarPanelAdministrador();
+        await new Promise((resolver) => setTimeout(resolver, 250));
+        dibujarTablaFacturas();
+    } catch (error) {
+        mostrarMensaje("mensaje-edicion-modal", mensajeError(error), "error");
+    }
 }
 
 // Cancela la edición y restablece el formulario administrativo.
@@ -680,6 +1078,39 @@ function conectarEventos() {
         await cargarUsuariosAdmin();
     });
     $("btn-cerrar-usuarios").addEventListener("click", () => $("modal-usuarios").classList.add("oculta"));
+    $("btn-abrir-procesamiento").addEventListener("click", () => {
+        $("modal-procesamiento").classList.remove("oculta");
+    });
+    $("btn-cerrar-procesamiento").addEventListener("click", () => $("modal-procesamiento").classList.add("oculta"));
+    $("btn-abrir-facturas").addEventListener("click", () => {
+        $("modal-facturas-admin").classList.remove("oculta");
+        dibujarTablaFacturas();
+    });
+    $("btn-cerrar-facturas").addEventListener("click", () => $("modal-facturas-admin").classList.add("oculta"));
+    $("modo-procesamiento").addEventListener("change", () => {
+        $("archivos-procesamiento").multiple = $("modo-procesamiento").value === "masivo";
+        if ($("modo-procesamiento").value === "individual") $("archivos-procesamiento").value = "";
+    });
+    $("btn-procesar-ocr").addEventListener("click", () => {
+        procesarLoteDocumentos("ocr");
+    });
+    $("btn-procesar-ia").addEventListener("click", () => {
+        procesarLoteDocumentos("ia");
+    });
+    $("btn-registrar-procesados").addEventListener("click", registrarLoteDocumentos);
+    $("btn-validar-todos").addEventListener("click", () => {
+        document.querySelectorAll(".documento-aprobado").forEach((control) => {
+            if (!control.disabled) control.checked = true;
+        });
+        mostrarMensaje("mensaje-procesamiento", "Todos los documentos válidos quedaron seleccionados para registrar.", "exito");
+    });
+    $("resultados-procesamiento").addEventListener("input", (evento) => {
+        actualizarDocumentoDesdeControl(evento.target);
+    });
+    $("resultados-procesamiento").addEventListener("click", async (evento) => {
+        const boton = evento.target.closest(".registrar-documento");
+        if (boton) await registrarDocumentoProcesado(Number(boton.dataset.doc));
+    });
     $("btn-abrir-finanzas").addEventListener("click", async () => {
         $("modal-finanzas").classList.remove("oculta"); await cargarFinanzas();
     });
@@ -730,11 +1161,20 @@ function conectarEventos() {
         if (!boton) return;
         const id = Number(boton.dataset.id);
         if (boton.dataset.accion === "pdf") window.open(`${API_FACTURAS}/${id}/pdf`, "_blank", "noopener");
+        if (boton.dataset.accion === "detalle") await mostrarDetalleFacturaAdmin(id);
         if (boton.dataset.accion === "editar") await editarFactura(id);
         if (boton.dataset.accion === "eliminar" && window.confirm("¿Eliminar esta factura?")) {
             await solicitar(`${API_FACTURAS}/${id}`, { method: "DELETE" });
             await cargarPanelAdministrador();
         }
+    });
+    $("detalle-factura-modal").addEventListener("click", (evento) => {
+        const boton = evento.target.closest("[data-factura-admin]");
+        if (!boton) return;
+        const id = Number(boton.dataset.id);
+        if (boton.dataset.facturaAdmin === "ver") window.open(`${API_FACTURAS}/${id}/pdf`, "_blank", "noopener");
+        if (boton.dataset.facturaAdmin === "descargar") window.open(`${API_FACTURAS}/${id}/pdf?descargar=true`, "_blank", "noopener");
+        if (boton.dataset.facturaAdmin === "cerrar") $("detalle-factura-modal").classList.add("oculta");
     });
     $("tabla-facturas-cliente").addEventListener("click", (evento) => {
         const boton = evento.target.closest("[data-cliente-pdf]");
@@ -744,7 +1184,26 @@ function conectarEventos() {
         const boton = evento.target.closest("[data-usuario-accion]");
         if (!boton) return;
         const id = Number(boton.dataset.id);
+        if (boton.dataset.usuarioAccion === "facturas") await mostrarFacturasUsuario(id);
         if (boton.dataset.usuarioAccion === "editar") await editarUsuario(id);
+    });
+    $("facturas-usuario-admin").addEventListener("click", async (evento) => {
+        const cerrar = evento.target.closest("#btn-cerrar-facturas-usuario");
+        if (cerrar) {
+            $("facturas-usuario-admin").classList.add("oculta");
+            return;
+        }
+        const volver = evento.target.closest("#btn-volver-facturas-usuario");
+        if (volver) {
+            await mostrarFacturasUsuario(Number($("facturas-usuario-admin").dataset.usuarioId));
+            return;
+        }
+        const boton = evento.target.closest("[data-factura-usuario]");
+        if (!boton) return;
+        const id = Number(boton.dataset.id);
+        if (boton.dataset.facturaUsuario === "ver") window.open(`${API_FACTURAS}/${id}/pdf`, "_blank", "noopener");
+        if (boton.dataset.facturaUsuario === "descargar") window.open(`${API_FACTURAS}/${id}/pdf?descargar=true`, "_blank", "noopener");
+        if (boton.dataset.facturaUsuario === "detalles") await mostrarDetallesFacturaUsuario(id);
     });
     $("form-producto").addEventListener("submit", async (evento) => {
         evento.preventDefault();

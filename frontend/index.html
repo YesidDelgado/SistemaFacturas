@@ -80,8 +80,8 @@
             <nav class="sidebar-nav">
                 <button class="nav-item active" data-target="cliente-inicio">⌂ <span>Inicio</span></button>
                 <button class="nav-item" data-target="cliente-ocr">◈ <span>OCR</span></button>
-                <button class="nav-item" data-target="cliente-factura">▣ <span>Factura</span></button>
                 <button class="nav-item" data-target="cliente-ia">✦ <span>IA</span></button>
+                <button class="nav-item" data-target="cliente-factura">▣ <span>Registrar factura</span></button>
             </nav>
             <div class="sidebar-note">Procesamiento seguro<br><small>OCR + IA</small></div>
         </aside>
@@ -128,19 +128,18 @@
             <nav class="sidebar-nav">
                 <button class="nav-item active" data-target="admin-inicio">⌂ <span>Inicio</span></button>
                 <button class="nav-item" id="btn-abrir-catalogo" type="button">▦ <span>Catálogo</span></button>
-                <button class="nav-item" data-target="admin-ocr">◈ <span>OCR</span></button>
-                <button class="nav-item" data-target="admin-facturas">▣ <span>Facturas</span></button>
+                <button class="nav-item" id="btn-abrir-facturas" type="button">▣ <span>Facturas registradas</span></button>
                 <button class="nav-item" id="btn-abrir-usuarios" type="button">♙ <span>Usuarios</span></button>
-                <button class="nav-item" data-target="admin-ia">✦ <span>IA</span></button>
+                <button class="nav-item" id="btn-abrir-procesamiento" type="button">⇄ <span>Procesar facturas</span></button>
                 <button class="nav-item" id="btn-abrir-finanzas" type="button">▤ <span>Análisis financiero</span></button>
             </nav>
             <div class="sidebar-note">Panel administrativo<br><small>Control total</small></div>
         </aside>
         <div class="workspace-main">
             <header class="topbar" id="admin-inicio"><div><span class="eyebrow">PANEL ADMINISTRATIVO</span><strong id="saludo-admin">Bienvenido</strong></div><div class="topbar-actions"><span class="role-badge">Administrador</span><button class="button button-secondary" id="btn-salir-admin" type="button">Cerrar sesión</button></div></header>
-            <div class="stats"><div class="stat-card"><span>Facturas registradas</span><strong id="total-facturas">0</strong></div><div class="stat-card green-stat"><span>Valor acumulado</span><strong id="valor-total">$0</strong></div></div>
+            <div class="stats"><div class="stat-card"><span>Facturas registradas</span><strong id="total-facturas">0</strong></div><div class="stat-card green-stat oculta"><span>Valor acumulado</span><strong id="valor-total">$0</strong></div></div>
             <!-- Análisis OCR e IA para el administrador. -->
-            <section class="card extraction-card" id="admin-ocr">
+            <section class="card extraction-card oculta" id="admin-ocr">
                 <div class="section-heading" id="admin-ia"><span class="section-icon">✦</span><div><span class="eyebrow">OCR + INTELIGENCIA ARTIFICIAL</span><h2>Procesar documento</h2><p>La IA identifica la factura y sus productos para revisión.</p></div></div>
                 <input type="file" id="archivo-ocr-admin" accept=".pdf,.docx,.png,.jpg,.jpeg,.webp">
                 <div class="button-row"><button class="button button-primary" id="btn-ocr-admin" type="button">Analizar con IA</button><button class="button button-secondary" id="btn-ocr-local-admin" type="button">Extraer con OCR</button></div>
@@ -159,9 +158,9 @@
                 <p id="mensaje-factura-admin" class="message" role="status"></p>
             </section>
             <!-- Área final de estado y mensajes del administrador. -->
-            <section class="card">
-                <div class="section-heading"><span class="section-icon blue">▤</span><div><span class="eyebrow">CONSULTA</span><h2>Facturas registradas</h2></div><input id="buscar-admin" class="search" type="search" placeholder="Buscar..."></div>
-                <div class="table-wrap"><table><thead><tr><th>Número</th><th>Cliente</th><th>Fecha</th><th>Total</th><th>Acciones</th></tr></thead><tbody id="tabla-facturas-admin"><tr><td colspan="5">Cargando...</td></tr></tbody></table></div>
+            <section class="card oculta">
+                <div class="section-heading"><span class="section-icon blue">▤</span><div><span class="eyebrow">CONSULTA</span><h2>Facturas registradas</h2></div><input id="buscar-admin-legado" class="search" type="search" placeholder="Buscar..."></div>
+                <div class="table-wrap"><table><thead><tr><th>Número</th><th>Cliente</th><th>Fecha</th><th>Total</th><th>Acciones</th></tr></thead><tbody id="tabla-facturas-admin-legado"><tr><td colspan="5">Cargando...</td></tr></tbody></table></div>
             </section>
         </div>
         <div id="modal-catalogo" class="admin-modal oculta" role="dialog" aria-modal="true" aria-labelledby="titulo-catalogo">
@@ -173,10 +172,39 @@
                 <div class="button-row catalog-actions"><button class="button button-secondary" id="btn-borrar-seleccionados" type="button">Borrar códigos</button><button class="button button-secondary" id="btn-borrar-todo" type="button">Borrar todo el catálogo</button></div>
             </section>
         </div>
+        <div id="modal-facturas-admin" class="admin-modal oculta" role="dialog" aria-modal="true" aria-labelledby="titulo-facturas-admin">
+            <section class="admin-modal-panel">
+                <div class="section-heading"><span class="section-icon blue">▣</span><div><span class="eyebrow">CONSULTA</span><h2 id="titulo-facturas-admin">Facturas registradas</h2><p>Consulta, edita, imprime o elimina facturas.</p></div><button class="button button-secondary" id="btn-cerrar-facturas" type="button">Cerrar</button></div>
+                <input id="buscar-admin" class="search" type="search" placeholder="Buscar...">
+                <div class="table-wrap"><table><thead><tr><th>Número</th><th>Cliente</th><th>Fecha</th><th>Total</th><th>Acciones</th></tr></thead><tbody id="tabla-facturas-admin"><tr><td colspan="5">Cargando...</td></tr></tbody></table></div>
+                <div id="detalle-factura-modal" class="user-invoices-panel oculta"></div>
+                <div id="edicion-factura-modal" class="invoice-edit-panel oculta"></div>
+            </section>
+        </div>
         <div id="modal-usuarios" class="admin-modal oculta" role="dialog" aria-modal="true" aria-labelledby="titulo-usuarios">
             <section class="admin-modal-panel">
                 <div class="section-heading"><span class="section-icon blue">♙</span><div><span class="eyebrow">ADMINISTRACIÓN</span><h2 id="titulo-usuarios">Gestión de usuarios</h2><p>Consulta y actualiza los clientes registrados. El historial se conserva.</p></div><button class="button button-secondary" id="btn-cerrar-usuarios" type="button">Cerrar</button></div>
                 <div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Identificación</th><th>Facturas</th><th>Total facturado</th><th>Acciones</th></tr></thead><tbody id="tabla-usuarios-admin"><tr><td colspan="5">Cargando...</td></tr></tbody></table></div>
+                <div id="facturas-usuario-admin" class="user-invoices-panel oculta"></div>
+            </section>
+        </div>
+        <div id="modal-procesamiento" class="admin-modal oculta" role="dialog" aria-modal="true" aria-labelledby="titulo-procesamiento">
+            <section class="admin-modal-panel processing-panel">
+                <div class="section-heading"><span class="section-icon">⇄</span><div><span class="eyebrow">OCR + INTELIGENCIA ARTIFICIAL</span><h2 id="titulo-procesamiento">Procesamiento de facturas</h2><p>Analiza documentos uno por uno, revisa los datos y registra solo los aprobados.</p></div><button class="button button-secondary" id="btn-cerrar-procesamiento" type="button">Cerrar</button></div>
+                <div class="processing-help"><strong>Revisión antes de registrar</strong><span>Verifica proveedor, NIT, fecha, total y productos. Puedes editar cada campo antes de guardar.</span></div>
+                <div class="processing-controls">
+                    <label>Modo
+                        <select id="modo-procesamiento"><option value="individual">Individual</option><option value="masivo">Masivo</option></select>
+                    </label>
+                    <label class="processing-file">Documentos
+                        <input id="archivos-procesamiento" type="file" accept=".pdf,.docx,.png,.jpg,.jpeg,.webp">
+                    </label>
+                    <div class="button-row"><button class="button button-secondary" id="btn-procesar-ocr" type="button">Procesar con OCR</button><button class="button button-primary" id="btn-procesar-ia" type="button">Procesar con IA</button></div>
+                    <button class="button button-success" id="btn-registrar-procesados" type="button" disabled>Registrar aprobados</button>
+                </div>
+                <p id="mensaje-procesamiento" class="message" role="status"></p>
+                <div class="processing-toolbar"><strong id="resumen-procesamiento">Sin documentos procesados</strong><button class="button button-secondary button-small" id="btn-validar-todos" type="button" disabled>Validar todos</button></div>
+                <div id="resultados-procesamiento" class="processing-results"><p class="empty-state">Selecciona un documento para comenzar.</p></div>
             </section>
         </div>
         <div id="modal-finanzas" class="finance-modal oculta" role="dialog" aria-modal="true" aria-labelledby="titulo-finanzas">
@@ -188,6 +216,6 @@
         </div>
     </section>
 </main>
-<script src="/static/js/app.js?v=20261104-1128"></script>
+<script src="/static/js/app.js?v=20261106-1535"></script>
 </body>
 </html>

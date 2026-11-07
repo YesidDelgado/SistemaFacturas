@@ -170,7 +170,7 @@ def _buscar_patron(texto: str, patrones: tuple[str, ...]) -> str | None:
         if coincidencia:
             return coincidencia.group(1).strip(" .:-")
     return None
-
+    
 
 def _extraer_proveedor(texto: str) -> str | None:
     """Obtiene el proveedor desde su etiqueta o desde la línea siguiente."""

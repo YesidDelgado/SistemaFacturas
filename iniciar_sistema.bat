@@ -38,7 +38,7 @@ if not exist ".env" (
 rem Comprueba e instala dependencias únicamente si faltan.
 echo [1/3] Verificando dependencias...
 
-"%PYTHON%" -c "import fastapi, uvicorn, dotenv; from google import genai"
+"%PYTHON%" -c "import fastapi, uvicorn, dotenv, PIL, reportlab, multipart, openpyxl; from google import genai"
 
 if errorlevel 1 (
     echo.

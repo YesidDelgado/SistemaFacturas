@@ -44,9 +44,12 @@ def listar_facturas():
         cursor = conexion.cursor()
 
         cursor.execute("""
-            SELECT id, factura, cliente, fecha, total, usuario_id, proveedor, nit_proveedor
-            FROM facturas
-            ORDER BY id DESC
+            SELECT f.id, f.factura, f.cliente, f.fecha, f.total,
+                   f.usuario_id, f.proveedor, f.nit_proveedor,
+                   u.identificacion
+            FROM facturas f
+            LEFT JOIN usuarios u ON u.id = f.usuario_id
+            ORDER BY f.id DESC
         """)
 
         return [

@@ -195,6 +195,31 @@ def listar_usuarios(request: Request):
         conexion.close()
 
 
+@router.get("/{usuario_id}/facturas")
+# Devuelve las facturas y datos básicos de un cliente para el panel administrativo.
+def listar_facturas_usuario_admin(usuario_id: int, request: Request):
+    """Lista las facturas de un cliente autenticado como administrador."""
+    exigir_admin(request)
+    conexion = obtener_conexion()
+    try:
+        usuario = conexion.execute(
+            "SELECT id FROM usuarios WHERE id = ?", (usuario_id,)
+        ).fetchone()
+        if usuario is None:
+            raise HTTPException(status_code=404, detail="El usuario no existe.")
+        filas = conexion.execute("""
+            SELECT f.id, f.factura, f.cliente, f.fecha, f.total,
+                   f.proveedor, f.nit_proveedor, u.identificacion
+            FROM facturas f
+            JOIN usuarios u ON u.id = f.usuario_id
+            WHERE f.usuario_id = ?
+            ORDER BY f.id DESC
+        """, (usuario_id,)).fetchall()
+        return [dict(fila) for fila in filas]
+    finally:
+        conexion.close()
+
+
 @router.put("/{usuario_id}")
 # Actualiza nombre e identificación de un cliente.
 def actualizar_usuario(

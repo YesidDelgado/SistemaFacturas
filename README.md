@@ -18,6 +18,12 @@ Desde la raíz del proyecto:
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+.\.venv\Scripts\python.exe -m uvicorn main:app --app-dir backend --reload --host 127.0.0.1 --port 8000
+```
+
+También puedes iniciar el sistema ejecutando `iniciar_sistema.bat` desde la
+raíz del proyecto. El entorno virtual está en `.venv`, no dentro de
+`backend`, y el módulo de entrada es `main:app`, no `app.main:app`.
 
 ## OCR local
 

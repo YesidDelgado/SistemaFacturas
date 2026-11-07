@@ -1,10 +1,13 @@
 """Consultas y reportes del análisis financiero y comercial."""
 
-import html
 from io import BytesIO
-from xml.etree import ElementTree
-from zipfile import ZIP_DEFLATED, ZipFile
 
+from openpyxl import Workbook
+from openpyxl.chart import BarChart, Reference
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
+from reportlab.graphics.charts.barcharts import VerticalBarChart
+from reportlab.graphics.shapes import Drawing, String
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
@@ -131,95 +134,116 @@ def obtener_analisis_financiero(
         conexion.close()
 
 
-def _filas_reporte(datos: dict) -> list[list[str]]:
-    """Convierte el análisis en filas tabulares para Excel."""
-    resumen = datos["resumen"]
-    filas = [
-        ["Indicador", "Valor"],
-        ["Facturas", str(resumen["facturas"])],
-        ["Ventas", f'{resumen["ventas"]:.2f}'],
-        ["Subtotal", f'{resumen["subtotal"]:.2f}'],
-        ["IVA", f'{resumen["iva"]:.2f}'],
-        ["Costos", f'{resumen["costos"]:.2f}'],
-        ["Utilidad", f'{resumen["utilidad"]:.2f}'],
-        ["Pérdida", f'{resumen["perdida"]:.2f}'],
-        [],
-        ["Producto", "Unidades", "Ventas", "Costos", "Utilidad"],
-    ]
-    filas.extend([
-        [
-            str(fila["nombre"]),
-            str(fila["unidades"]),
-            f'{float(fila["ventas"]):.2f}',
-            f'{float(fila["costos"]):.2f}',
-            f'{float(fila["utilidad"]):.2f}',
-        ]
-        for fila in datos["productos"]
-    ])
-    filas.extend([[], ["Periodo", "Ventas", "Costos"]])
-    filas.extend([
-        [str(fila["periodo"]), f'{float(fila["ventas"]):.2f}', f'{float(fila["costos"]):.2f}']
-        for fila in datos["mensual"]
-    ])
-    return filas
-
-
-def _celda_excel(valor: str) -> str:
-    """Genera una celda Excel con texto inline seguro."""
-    return f'<c t="inlineStr"><is><t>{html.escape(str(valor))}</t></is></c>'
+def _formatear_columnas(hoja) -> None:
+    """Aplica formato común a las hojas tabulares del libro."""
+    encabezado = PatternFill("solid", fgColor="283C91")
+    for celda in hoja[1]:
+        celda.fill = encabezado
+        celda.font = Font(color="FFFFFF", bold=True)
+    hoja.freeze_panes = "A2"
+    hoja.auto_filter.ref = hoja.dimensions
+    for columna in range(1, hoja.max_column + 1):
+        hoja.column_dimensions[get_column_letter(columna)].width = 22
+    for fila in hoja.iter_rows():
+        for celda in fila:
+            celda.alignment = Alignment(vertical="center")
 
 
 def generar_excel_financiero(datos: dict) -> bytes:
-    """Genera un libro XLSX con resumen, productos y periodos."""
-    filas = _filas_reporte(datos)
-    sheet_rows = []
-    for indice, fila in enumerate(filas, 1):
-        celdas = "".join(_celda_excel(valor) for valor in fila)
-        sheet_rows.append(f'<row r="{indice}">{celdas}</row>')
-    contenido = (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-        f'<sheetData>{"".join(sheet_rows)}</sheetData></worksheet>'
-    )
+    """Genera un libro XLSX con hojas, formato y gráficos del análisis."""
+    libro = Workbook()
+    resumen_hoja = libro.active
+    resumen_hoja.title = "Resumen"
+    resumen = datos["resumen"]
+    resumen_hoja.append(["Informe financiero y comercial", None])
+    resumen_hoja.append(["Periodo", f"{datos['periodo'].get('desde') or 'Inicio'} - {datos['periodo'].get('hasta') or 'Actual'}"])
+    resumen_hoja.append([])
+    resumen_hoja.append(["Indicador", "Valor"])
+    for nombre, valor in [
+        ("Facturas", resumen["facturas"]), ("Ventas", resumen["ventas"]),
+        ("Subtotal", resumen["subtotal"]), ("IVA", resumen["iva"]),
+        ("Costos", resumen["costos"]), ("Utilidad", resumen["utilidad"]),
+        ("Pérdida", resumen["perdida"]),
+    ]:
+        resumen_hoja.append([nombre, float(valor)])
+    resumen_hoja["A1"].font = Font(size=16, bold=True, color="283C91")
+    resumen_hoja["A4"].fill = PatternFill("solid", fgColor="283C91")
+    resumen_hoja["B4"].fill = PatternFill("solid", fgColor="283C91")
+    resumen_hoja["A4"].font = Font(color="FFFFFF", bold=True)
+    resumen_hoja["B4"].font = Font(color="FFFFFF", bold=True)
+    for fila in resumen_hoja.iter_rows(min_row=5, min_col=2, max_col=2):
+        fila[0].number_format = '$#,##0.00'
+
+    productos_hoja = libro.create_sheet("Productos")
+    productos_hoja.append(["Producto", "Unidades", "Ventas", "Costos", "Utilidad"])
+    for fila in datos["productos"]:
+        productos_hoja.append([
+            str(fila["nombre"]), float(fila["unidades"]), float(fila["ventas"]),
+            float(fila["costos"]), float(fila["utilidad"]),
+        ])
+    periodos_hoja = libro.create_sheet("Periodos")
+    periodos_hoja.append(["Periodo", "Ventas", "Costos", "Utilidad"])
+    for fila in datos["mensual"]:
+        periodos_hoja.append([
+            str(fila["periodo"]), float(fila["ventas"]), float(fila["costos"]),
+            float(fila["ventas"]) - float(fila["costos"]),
+        ])
+    _formatear_columnas(productos_hoja)
+    _formatear_columnas(periodos_hoja)
+    for hoja in (productos_hoja, periodos_hoja):
+        for fila in hoja.iter_rows(min_row=2, min_col=2):
+            for celda in fila:
+                celda.number_format = '$#,##0.00'
+    for fila in productos_hoja.iter_rows(min_row=2, min_col=2, max_col=2):
+        fila[0].number_format = '0.00'
+
+    if productos_hoja.max_row > 1:
+        grafico = BarChart()
+        grafico.type = "bar"
+        grafico.style = 10
+        grafico.title = "Ventas, costos y utilidad por producto"
+        grafico.add_data(Reference(productos_hoja, min_col=3, max_col=5, min_row=1, max_row=productos_hoja.max_row), titles_from_data=True)
+        grafico.set_categories(Reference(productos_hoja, min_col=1, min_row=2, max_row=productos_hoja.max_row))
+        grafico.height = 8
+        grafico.width = 15
+        resumen_hoja.add_chart(grafico, "D4")
+    if periodos_hoja.max_row > 1:
+        grafico = BarChart()
+        grafico.style = 11
+        grafico.title = "Ventas, costos y utilidad por periodo"
+        grafico.add_data(Reference(periodos_hoja, min_col=2, max_col=4, min_row=1, max_row=periodos_hoja.max_row), titles_from_data=True)
+        grafico.set_categories(Reference(periodos_hoja, min_col=1, min_row=2, max_row=periodos_hoja.max_row))
+        grafico.height = 8
+        grafico.width = 15
+        resumen_hoja.add_chart(grafico, "D20")
     buffer = BytesIO()
-    with ZipFile(buffer, "w", ZIP_DEFLATED) as libro:
-        libro.writestr(
-            "[Content_Types].xml",
-            '<?xml version="1.0" encoding="UTF-8"?>'
-            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-            '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
-            '<Default Extension="xml" ContentType="application/xml"/>'
-            '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
-            '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
-            '</Types>',
-        )
-        libro.writestr(
-            "_rels/.rels",
-            '<?xml version="1.0" encoding="UTF-8"?>'
-            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
-            '</Relationships>',
-        )
-        libro.writestr(
-            "xl/workbook.xml",
-            '<?xml version="1.0" encoding="UTF-8"?>'
-            '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
-            'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
-            '<sheets><sheet name="Análisis" sheetId="1" r:id="rId1"/></sheets></workbook>',
-        )
-        libro.writestr(
-            "xl/_rels/workbook.xml.rels",
-            '<?xml version="1.0" encoding="UTF-8"?>'
-            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
-            '</Relationships>',
-        )
-        libro.writestr("xl/worksheets/sheet1.xml", contenido)
+    libro.save(buffer)
     return buffer.getvalue()
 
 
+def _grafico_pdf(titulo: str, etiquetas: list[str], valores: list[float], color: str) -> Drawing:
+    """Construye un gráfico de barras compatible con ReportLab."""
+    dibujo = Drawing(500, 220)
+    grafico = VerticalBarChart()
+    grafico.x = 45
+    grafico.y = 35
+    grafico.height = 150
+    grafico.width = 430
+    grafico.valueAxis.valueMin = 0
+    grafico.valueAxis.valueMax = max(max(valores, default=0) * 1.15, 1)
+    grafico.valueAxis.valueStep = grafico.valueAxis.valueMax / 5
+    grafico.categoryAxis.labels.boxAnchor = "ne"
+    grafico.categoryAxis.labels.angle = 35
+    grafico.categoryAxis.categoryNames = etiquetas
+    grafico.data = [valores or [0]]
+    grafico.bars[0].fillColor = colors.HexColor(color)
+    dibujo.add(grafico)
+    dibujo.add(String(45, 205, titulo, fontSize=11, fontName="Helvetica-Bold"))
+    return dibujo
+
+
 def generar_pdf_financiero(datos: dict) -> bytes:
-    """Genera un PDF con indicadores y productos rentables o deficitarios."""
+    """Genera un PDF con indicadores, tablas y gráficos integrados."""
     buffer = BytesIO()
     documento = SimpleDocTemplate(
         buffer, pagesize=A4, rightMargin=1.3 * cm, leftMargin=1.3 * cm,
@@ -231,20 +255,16 @@ def generar_pdf_financiero(datos: dict) -> bytes:
         Paragraph("Informe financiero y comercial", estilos["Title"]),
         Paragraph(
             f"Periodo: {datos['periodo'].get('desde') or 'Inicio'} - "
-            f"{datos['periodo'].get('hasta') or 'Actual'}",
-            estilos["Normal"],
+            f"{datos['periodo'].get('hasta') or 'Actual'}", estilos["Normal"],
         ),
         Spacer(1, 0.3 * cm),
     ]
     indicadores = [["Indicador", "Valor"]] + [
         [nombre.title(), f"$ {float(valor):,.2f}"]
         for nombre, valor in [
-            ("Facturas", resumen["facturas"]),
-            ("Ventas", resumen["ventas"]),
-            ("IVA", resumen["iva"]),
-            ("Costos", resumen["costos"]),
-            ("Utilidad", resumen["utilidad"]),
-            ("Pérdida", resumen["perdida"]),
+            ("Facturas", resumen["facturas"]), ("Ventas", resumen["ventas"]),
+            ("IVA", resumen["iva"]), ("Costos", resumen["costos"]),
+            ("Utilidad", resumen["utilidad"]), ("Pérdida", resumen["perdida"]),
         ]
     ]
     tabla_indicadores = Table(indicadores, colWidths=[8 * cm, 8 * cm])
@@ -254,19 +274,26 @@ def generar_pdf_financiero(datos: dict) -> bytes:
         ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#cfd4ef")),
         ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
     ]))
-    historia.append(tabla_indicadores)
-    historia.append(Spacer(1, 0.35 * cm))
+    historia.extend([tabla_indicadores, Spacer(1, 0.35 * cm)])
+    historia.append(_grafico_pdf(
+        "Ventas y utilidad por producto",
+        [str(fila["nombre"])[:18] for fila in datos["productos"][:10]],
+        [float(fila["ventas"]) for fila in datos["productos"][:10]],
+        "#283c91",
+    ))
+    historia.append(_grafico_pdf(
+        "Ventas y costos por periodo",
+        [str(fila["periodo"]) for fila in datos["mensual"]],
+        [float(fila["ventas"]) for fila in datos["mensual"]],
+        "#10b981",
+    ))
     productos = [["Producto", "Unidades", "Ventas", "Costos", "Utilidad"]]
     productos.extend([
-        [
-            fila["nombre"], str(fila["unidades"]),
-            f"$ {float(fila['ventas']):,.2f}",
-            f"$ {float(fila['costos']):,.2f}",
-            f"$ {float(fila['utilidad']):,.2f}",
-        ]
+        [fila["nombre"], str(fila["unidades"]), f"$ {float(fila['ventas']):,.2f}",
+         f"$ {float(fila['costos']):,.2f}", f"$ {float(fila['utilidad']):,.2f}"]
         for fila in datos["productos"]
     ])
-    tabla_productos = Table(productos, colWidths=[6.5 * cm, 2 * cm, 2.7 * cm, 2.7 * cm, 2.7 * cm])
+    tabla_productos = Table(productos, colWidths=[6.5 * cm, 2 * cm, 2.7 * cm, 2.7 * cm, 2.7 * cm], repeatRows=1)
     tabla_productos.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#10b981")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),

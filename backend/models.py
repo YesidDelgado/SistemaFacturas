@@ -15,4 +15,5 @@ def fila_a_diccionario(fila):
         "usuario_id": fila["usuario_id"] if "usuario_id" in fila.keys() else None,
         "proveedor": fila["proveedor"] if "proveedor" in fila.keys() else None,
         "nit_proveedor": fila["nit_proveedor"] if "nit_proveedor" in fila.keys() else None,
+        "identificacion": fila["identificacion"] if "identificacion" in fila.keys() else None,
     }
