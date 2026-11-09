@@ -6,10 +6,10 @@ venv/
 __pycache__/
 *.py[cod]
 
-# Variables de entorno y credenciales
+# Variables de entorno
 .env
-.env/
 .env.*
+!.env.example
 
 # Configuración de editores
 .vscode/

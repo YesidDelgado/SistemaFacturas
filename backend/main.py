@@ -2,6 +2,10 @@
 
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env")
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
@@ -21,7 +25,6 @@ from routers.ocr import router as ocr_router
 from routers.catalogo import router as catalogo_router
 from routers.finanzas import router as finanzas_router
 
-BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR / "frontend"
 
 app = FastAPI(
