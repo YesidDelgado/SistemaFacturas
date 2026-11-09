@@ -450,9 +450,20 @@ async function cargarProximoCodigo(id) {
 }
 
 // Muestra la respuesta completa de OCR o IA en formato JSON.
+// Muestra el JSON únicamente en el panel administrativo.
 function mostrarResultado(id, datos) {
-    $(id).textContent = JSON.stringify(datos, null, 2);
-    $(id).classList.remove("oculta");
+    const elemento = $(id);
+
+    // Ocultar el JSON técnico al cliente.
+    if (id === "resultado-ocr-cliente") {
+        elemento.textContent = "";
+        elemento.classList.add("oculta");
+        return;
+    }
+
+    // Mantener el JSON visible para el administrador.
+    elemento.textContent = JSON.stringify(datos, null, 2);
+    elemento.classList.remove("oculta");
 }
 
 // Presenta los campos y productos estructurados en una tabla.
@@ -836,24 +847,91 @@ async function mostrarDetallesFacturaUsuario(id) {
     }
 }
 
-// Edita los datos de un cliente mediante el formulario del navegador.
 // Gestión administrativa de usuarios y facturas.
+// Edita los datos de un cliente directamente en la interfaz del sistema.
 async function editarUsuario(id) {
     const usuario = usuariosAdmin.find((item) => Number(item.id) === id);
     if (!usuario) return;
-    const nombre = window.prompt("Nombre del cliente:", usuario.nombre);
-    if (nombre === null) return;
-    const identificacion = window.prompt("Identificación:", usuario.identificacion);
-    if (identificacion === null) return;
-    try {
-        await solicitar(`${API_USUARIOS}/${id}`, {
-            method: "PUT",
-            body: JSON.stringify({ nombre: nombre.trim(), identificacion: identificacion.trim() })
-        });
-        await cargarUsuariosAdmin();
-    } catch (error) {
-        window.alert(mensajeError(error));
-    }
+
+    const panel = $("facturas-usuario-admin");
+
+    // Mostrar el formulario dentro del panel administrativo.
+    panel.classList.remove("oculta");
+    panel.innerHTML = `
+        <div class="section-heading">
+            <div>
+                <span class="eyebrow">ADMINISTRACIÓN</span>
+                <h3>Editar cliente</h3>
+            </div>
+            <button class="button button-secondary" type="button" id="cancelar-edicion-usuario">
+                Cancelar
+            </button>
+        </div>
+
+        <form id="form-editar-usuario" class="invoice-form">
+            <label>
+                Nombre del cliente
+                <input type="text" id="editar-nombre-usuario" required>
+            </label>
+
+            <label>
+                Identificación
+                <input type="text" id="editar-identificacion-usuario" required>
+            </label>
+
+            <div class="button-row full">
+                <button class="button button-primary" type="submit">
+                    Guardar cambios
+                </button>
+            </div>
+        </form>
+
+        <p id="mensaje-edicion-usuario" class="message" role="status"></p>
+    `;
+
+    // Cargar los datos actuales del cliente en los campos.
+    $("editar-nombre-usuario").value = usuario.nombre;
+    $("editar-identificacion-usuario").value = usuario.identificacion;
+
+    // Cancelar la edición.
+    $("cancelar-edicion-usuario").addEventListener("click", () => {
+        panel.classList.add("oculta");
+        panel.innerHTML = "";
+    });
+
+    // Guardar los cambios.
+    $("form-editar-usuario").addEventListener("submit", async (evento) => {
+        evento.preventDefault();
+
+        const nombre = $("editar-nombre-usuario").value.trim();
+        const identificacion = $("editar-identificacion-usuario").value.trim();
+        const mensaje = $("mensaje-edicion-usuario");
+
+        if (!nombre || !identificacion) {
+            mensaje.textContent = "Debes completar todos los campos.";
+            mensaje.className = "message error";
+            return;
+        }
+
+        try {
+            await solicitar(`${API_USUARIOS}/${id}`, {
+                method: "PUT",
+                body: JSON.stringify({ nombre, identificacion })
+            });
+
+            mensaje.textContent = "Cliente actualizado correctamente.";
+            mensaje.className = "message success";
+
+            await cargarUsuariosAdmin();
+
+            panel.classList.add("oculta");
+            panel.innerHTML = "";
+
+        } catch (error) {
+            mensaje.textContent = mensajeError(error);
+            mensaje.className = "message error";
+        }
+    });
 }
 
 // Filtra y dibuja la tabla de facturas del administrador.
